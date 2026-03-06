@@ -1,0 +1,3 @@
+[submodule "thrid_party/Flux"]
+	path = thrid_party/Flux
+	url = https://github.com/Yang-Junjie/Flux.git
