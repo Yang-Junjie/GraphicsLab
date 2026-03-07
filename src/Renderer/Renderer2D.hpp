@@ -2,7 +2,9 @@
 
 #include <cstddef>
 #include <cstdint>
+
 #include <glm/glm.hpp>
+#include <string>
 
 namespace renderer {
 
@@ -13,6 +15,7 @@ struct QuadInstance {
     float rotation;
     float _pad[3];
 };
+
 static_assert(offsetof(QuadInstance, color) == 0);
 static_assert(offsetof(QuadInstance, position) == 16);
 static_assert(offsetof(QuadInstance, size) == 24);
@@ -25,6 +28,7 @@ struct CircleInstance {
     float radius;
     float _pad;
 };
+
 static_assert(offsetof(CircleInstance, color) == 0);
 static_assert(offsetof(CircleInstance, position) == 16);
 static_assert(offsetof(CircleInstance, radius) == 24);
@@ -38,19 +42,21 @@ struct Renderer2DStats {
 
 class Renderer2D {
 public:
-    static void Init(uint32_t max_quads = 1000000, uint32_t max_circles = 1000000);
+    static void Init(const std::string& shader_dir,
+                     uint32_t max_quads = 1'000'000,
+                     uint32_t max_circles = 1'000'000);
     static void Shutdown();
 
     static void BeginScene(const glm::mat4& projection);
     static void EndScene();
 
-    static void DrawQuad(const glm::vec2& position, const glm::vec2& size,
-                         float rotation, const glm::vec4& color);
-    static void DrawQuad(const glm::vec2& position, const glm::vec2& size,
+    static void DrawQuad(const glm::vec2& position,
+                         const glm::vec2& size,
+                         float rotation,
                          const glm::vec4& color);
+    static void DrawQuad(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color);
 
-    static void DrawCircle(const glm::vec2& position, float radius,
-                           const glm::vec4& color);
+    static void DrawCircle(const glm::vec2& position, float radius, const glm::vec4& color);
 
     static const Renderer2DStats& GetStats();
     static void ResetStats();
