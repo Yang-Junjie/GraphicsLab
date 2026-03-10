@@ -2,3 +2,4 @@ build/
 .claude/
 bin/
 cmake-build-debug-mingw/
+docs/
