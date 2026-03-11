@@ -1,4 +1,4 @@
-#include "BasicShapesScene.hpp"
+#include "TriangleScene.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -12,7 +12,9 @@
 static std::string ReadFile(const char* path)
 {
     std::ifstream f(path);
-    if (!f.is_open()) return {};
+    if (!f.is_open()) {
+        return {};
+    }
     std::ostringstream ss;
     ss << f.rdbuf();
     return ss.str();
@@ -36,7 +38,9 @@ static GLuint LinkProgram(const char* vert_path, const char* frag_path)
 {
     std::string vs_src = ReadFile(vert_path);
     std::string fs_src = ReadFile(frag_path);
-    if (vs_src.empty() || fs_src.empty()) return 0;
+    if (vs_src.empty() || fs_src.empty()) {
+        return 0;
+    }
 
     GLuint vs = CompileStage(GL_VERTEX_SHADER, vs_src.c_str());
     GLuint fs = CompileStage(GL_FRAGMENT_SHADER, fs_src.c_str());
@@ -62,13 +66,13 @@ static GLuint LinkProgram(const char* vert_path, const char* frag_path)
     return prog;
 }
 
-// ---- BasicShapesScene ------------------------------------------------------
+// ---- TriangleScene ------------------------------------------------------
 
-BasicShapesScene::BasicShapesScene()
+TriangleScene::TriangleScene()
     : Scene("Basic Shapes")
 {}
 
-void BasicShapesScene::OnEnter()
+void TriangleScene::OnEnter()
 {
     program_ = LinkProgram("shaders/basic.vert", "shaders/basic.frag");
     proj_loc_ = glGetUniformLocation(program_, "u_Proj");
@@ -81,16 +85,15 @@ void BasicShapesScene::OnEnter()
 
     // layout: vec2 pos + vec4 color  (stride = 6 floats)
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*) 0);
 
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
-                          (void*)(2 * sizeof(float)));
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*) (2 * sizeof(float)));
 
     glBindVertexArray(0);
 }
 
-void BasicShapesScene::OnExit()
+void TriangleScene::OnExit()
 {
     glDeleteBuffers(1, &vbo_);
     glDeleteVertexArrays(1, &vao_);
@@ -100,11 +103,11 @@ void BasicShapesScene::OnExit()
     program_ = 0;
 }
 
-void BasicShapesScene::OnRender(float width, float height)
+void TriangleScene::OnRender(float width, float height)
 {
     float cx = width * 0.5f;
     float cy = height * 0.5f;
-    float r  = std::min(width, height) * 0.3f;
+    float r = std::min(width, height) * 0.3f;
 
     constexpr float sin60 = 0.866025f;
     constexpr float cos60 = 0.5f;

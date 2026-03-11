@@ -38,6 +38,7 @@ struct Renderer2DStats {
     uint32_t quad_count = 0;
     uint32_t circle_count = 0;
     uint32_t draw_calls = 0;
+    float gpu_time_ms = 0.0f;
 };
 
 class Renderer2D {
@@ -57,6 +58,9 @@ public:
     static void DrawQuad(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color);
 
     static void DrawCircle(const glm::vec2& position, float radius, const glm::vec4& color);
+
+    static QuadInstance*   AllocQuads(uint32_t count);
+    static CircleInstance* AllocCircles(uint32_t count);
 
     static const Renderer2DStats& GetStats();
     static void ResetStats();

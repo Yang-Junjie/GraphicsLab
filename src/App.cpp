@@ -21,16 +21,16 @@ FluidSimApp::FluidSimApp(const flux::ApplicationSpecification& spec)
 std::unique_ptr<flux::Application> flux::CreateApplication()
 {
     flux::ApplicationSpecification spec;
-    spec.name = "CGDemo";
-    spec.width = 1'400;
-    spec.height = 900;
+    spec.window.title = "CGDemo";
+    spec.window.width = 1'400;
+    spec.window.height = 900;
     spec.clear_color[0] = 0.08f;
     spec.clear_color[1] = 0.08f;
     spec.clear_color[2] = 0.12f;
     spec.clear_color[3] = 1.0f;
-    spec.vsync = false;
-    spec.msaa_samples = 4;
-    spec.resizable = true;
+    spec.window.vsync = false;
+    spec.window.msaa_samples = 4;
+    spec.window.resizable = true;
     spec.imgui_docking_enabled = true;
     spec.imgui_viewports_enabled = true;
     return std::make_unique<FluidSimApp>(spec);

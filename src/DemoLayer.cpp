@@ -1,8 +1,8 @@
 #include "DemoLayer.hpp"
 #include "Renderer/Renderer2D.hpp"
-#include "Scene/BasicShapesScene.hpp"
-#include "Scene/CirclePatternScene.hpp"
-#include "Scene/GridScene.hpp"
+#include "Scene/StressTestScene.hpp"
+#include "Scene/TextureScene.hpp"
+#include "Scene/TriangleScene.hpp"
 
 #include <algorithm>
 #include <glad/glad.h>
@@ -21,9 +21,9 @@ void DemoLayer::OnAttach()
 
     jobs_ = std::make_unique<job::JobSystem>();
 
-    scenes_.push_back(std::make_unique<BasicShapesScene>());
-    scenes_.push_back(std::make_unique<GridScene>());
-    scenes_.push_back(std::make_unique<CirclePatternScene>());
+    scenes_.push_back(std::make_unique<TriangleScene>());
+    scenes_.push_back(std::make_unique<StressTestScene>());
+    scenes_.push_back(std::make_unique<TextureScene>());
 
     current_scene_ = 0;
     scenes_[current_scene_]->OnEnter();
@@ -143,6 +143,7 @@ void DemoLayer::OnRenderUI()
     ImGui::Text("Circles:    %u", stats.circle_count);
     ImGui::Text("Quads:      %u", stats.quad_count);
     ImGui::Text("Draw Calls: %u", stats.draw_calls);
+    ImGui::Text("GPU Time:   %.3f ms", stats.gpu_time_ms);
     ImGui::Separator();
     ImGui::Text("Workers:    %d", jobs_->ThreadCount());
     ImGui::End();

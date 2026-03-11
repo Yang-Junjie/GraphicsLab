@@ -4,9 +4,9 @@
 
 #include <glad/glad.h>
 
-class BasicShapesScene : public Scene {
+class TriangleScene : public Scene {
 public:
-    BasicShapesScene();
+    TriangleScene();
 
     void OnEnter() override;
     void OnExit() override;
@@ -14,7 +14,7 @@ public:
 
 private:
     GLuint program_ = 0;
-    GLuint vao_     = 0;
-    GLuint vbo_     = 0;
-    GLint  proj_loc_ = -1;
+    GLuint vao_ = 0;
+    GLuint vbo_ = 0;
+    GLint proj_loc_ = -1;
 };

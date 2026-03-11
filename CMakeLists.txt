@@ -18,16 +18,20 @@ add_executable(CGDemo
     src/Backend/OpenGL/Shader.cpp
     src/Backend/OpenGL/VertexArray.cpp
     src/Renderer/Renderer2D.cpp
-    src/Scene/BasicShapesScene.cpp
-    src/Scene/GridScene.cpp
-    src/Scene/CirclePatternScene.cpp
+    src/Scene/TriangleScene.cpp
+    src/Scene/StressTestScene.cpp
+    src/Scene/TextureScene.cpp
+    thrid_party/stb/stb_image.cpp
 )
 
 set_target_properties(CGDemo PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR}
 )
 
-target_include_directories(CGDemo PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(CGDemo PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/thrid_party/stb
+)
 target_link_libraries(CGDemo PRIVATE FluxCore)
 
 if(MSVC)
@@ -39,6 +43,13 @@ add_custom_command(TARGET CGDemo POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/shaders
         $<TARGET_FILE_DIR:CGDemo>/shaders
+)
+
+# Copy resources to output directory
+add_custom_command(TARGET CGDemo POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/res
+        $<TARGET_FILE_DIR:CGDemo>/res
 )
 
 
