@@ -1,8 +1,8 @@
-#include "DemoLayer.hpp"
+#include "AppLayer.hpp"
 #include "Renderer/Renderer2D.hpp"
-#include "Scene/StressTestScene.hpp"
-#include "Scene/TextureScene.hpp"
-#include "Scene/TriangleScene.hpp"
+#include "Scene/Scenes/StressTestScene.hpp"
+#include "Scene/Scenes/TextureScene.hpp"
+#include "Scene/Scenes/TriangleScene.hpp"
 
 #include <algorithm>
 #include <glad/glad.h>
@@ -10,11 +10,11 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
 
-DemoLayer::DemoLayer()
-    : Layer("DemoLayer")
+AppLayer::AppLayer()
+    : Layer("AppLayer")
 {}
 
-void DemoLayer::OnAttach()
+void AppLayer::OnAttach()
 {
     renderer::Renderer2D::Init("shaders");
     fbo_.Create(viewport_w_, viewport_h_);
@@ -29,7 +29,7 @@ void DemoLayer::OnAttach()
     scenes_[current_scene_]->OnEnter();
 }
 
-void DemoLayer::OnDetach()
+void AppLayer::OnDetach()
 {
     update_counter_.Wait();
     jobs_.reset();
@@ -41,7 +41,7 @@ void DemoLayer::OnDetach()
     renderer::Renderer2D::Shutdown();
 }
 
-void DemoLayer::OnUpdate(flux::TimeStep ts)
+void AppLayer::OnUpdate(flux::TimeStep ts)
 {
     // ---- frame timing ----
     frame_samples_[frame_sample_index_] = ts.GetMilliseconds();
@@ -86,7 +86,7 @@ void DemoLayer::OnUpdate(flux::TimeStep ts)
     }
 }
 
-void DemoLayer::OnRenderUI()
+void AppLayer::OnRenderUI()
 {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::Begin("Viewport");
@@ -140,6 +140,21 @@ void DemoLayer::OnRenderUI()
                          33.3f,
                          ImVec2(graph_w, 50));
     ImGui::Separator();
+
+    // Renderer API display
+    RendererAPI current_api = scenes_[current_scene_]->GetRendererAPI();
+    const char* api_name = Scene::RendererAPIToString(current_api);
+    ImGui::Text("Renderer:   %s", api_name);
+
+    // Future: RHI switching (only when RHI is implemented)
+    // if (current_api == RendererAPI::RHI) {
+    //     if (ImGui::BeginCombo("##APICombo", api_name)) {
+    //         // Add API options here
+    //         ImGui::EndCombo();
+    //     }
+    // }
+
+    ImGui::Separator();
     ImGui::Text("Circles:    %u", stats.circle_count);
     ImGui::Text("Quads:      %u", stats.quad_count);
     ImGui::Text("Draw Calls: %u", stats.draw_calls);
@@ -149,4 +164,4 @@ void DemoLayer::OnRenderUI()
     ImGui::End();
 }
 
-void DemoLayer::OnEvent(flux::Event& event) {}
+void AppLayer::OnEvent(flux::Event& event) {}

@@ -1,13 +1,13 @@
 #pragma once
 
-#include "Scene.hpp"
-
+#include "../Scene.hpp"
 #include "Backend/OpenGL/GL.hpp"
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <string>
 #include <vector>
+
 
 class TextureScene : public Scene {
 public:

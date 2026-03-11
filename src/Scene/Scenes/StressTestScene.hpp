@@ -1,12 +1,12 @@
 #pragma once
 
-#include "Scene.hpp"
-
+#include "../Scene.hpp"
 #include "Backend/OpenGL/GL.hpp"
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <vector>
+
 
 class StressTestScene : public Scene {
 public:

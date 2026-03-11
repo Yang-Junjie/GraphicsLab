@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(CGDemo)
+project(CGLab)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -9,47 +9,47 @@ set(BIN_DIR ${CMAKE_SOURCE_DIR}/bin CACHE PATH "Output directory for binaries")
 
 add_subdirectory(thrid_party/Flux)
 
-add_executable(CGDemo
+add_executable(CGLab
     src/App.cpp
-    src/DemoLayer.cpp
+    src/AppLayer.cpp
     src/JobSystem/JobSystem.cpp
     src/Backend/OpenGL/Buffer.cpp
     src/Backend/OpenGL/Framebuffer.cpp
     src/Backend/OpenGL/Shader.cpp
     src/Backend/OpenGL/VertexArray.cpp
     src/Renderer/Renderer2D.cpp
-    src/Scene/TriangleScene.cpp
-    src/Scene/StressTestScene.cpp
-    src/Scene/TextureScene.cpp
+    src/Scene/Scenes/TriangleScene.cpp
+    src/Scene/Scenes/StressTestScene.cpp
+    src/Scene/Scenes/TextureScene.cpp
     thrid_party/stb/stb_image.cpp
 )
 
-set_target_properties(CGDemo PROPERTIES
+set_target_properties(CGLab PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR}
 )
 
-target_include_directories(CGDemo PRIVATE
+target_include_directories(CGLab PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/thrid_party/stb
 )
-target_link_libraries(CGDemo PRIVATE FluxCore)
+target_link_libraries(CGLab PRIVATE FluxCore)
 
 if(MSVC)
-    target_compile_options(CGDemo PRIVATE /utf-8)
+    target_compile_options(CGLab PRIVATE /utf-8)
 endif()
 
 # Copy shaders to output directory
-add_custom_command(TARGET CGDemo POST_BUILD
+add_custom_command(TARGET CGLab POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/shaders
-        $<TARGET_FILE_DIR:CGDemo>/shaders
+        $<TARGET_FILE_DIR:CGLab>/shaders
 )
 
 # Copy resources to output directory
-add_custom_command(TARGET CGDemo POST_BUILD
+add_custom_command(TARGET CGLab POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/res
-        $<TARGET_FILE_DIR:CGDemo>/res
+        $<TARGET_FILE_DIR:CGLab>/res
 )
 
 

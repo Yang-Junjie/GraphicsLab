@@ -10,9 +10,9 @@
 #include <memory>
 #include <vector>
 
-class DemoLayer : public flux::Layer {
+class AppLayer : public flux::Layer {
 public:
-    DemoLayer();
+    AppLayer();
 
     void OnAttach() override;
     void OnDetach() override;

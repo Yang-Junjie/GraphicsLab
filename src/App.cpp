@@ -1,5 +1,5 @@
 #include "App.hpp"
-#include "DemoLayer.hpp"
+#include "AppLayer.hpp"
 
 #include <imgui.h>
 #include <memory>
@@ -7,7 +7,7 @@
 FluidSimApp::FluidSimApp(const flux::ApplicationSpecification& spec)
     : flux::Application(spec)
 {
-    PushLayer(std::make_unique<DemoLayer>());
+    PushLayer(std::make_unique<AppLayer>());
     SetMenubarCallback([this]() {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Exit", "Alt+F4")) {
@@ -21,7 +21,7 @@ FluidSimApp::FluidSimApp(const flux::ApplicationSpecification& spec)
 std::unique_ptr<flux::Application> flux::CreateApplication()
 {
     flux::ApplicationSpecification spec;
-    spec.window.title = "CGDemo";
+    spec.window.title = "CGLab";
     spec.window.width = 1'400;
     spec.window.height = 900;
     spec.clear_color[0] = 0.08f;

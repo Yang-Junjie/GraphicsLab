@@ -1,6 +1,6 @@
 # GraphicsLab
 
-一个基于 C++17 和 OpenGL 4.3 的实时图形渲染引擎与演示平台，展示了实例化渲染、多线程任务系统和可插拔场景架构。
+一个基于 C++17 和 OpenGL 4.3 的实时图形渲染引擎与演示平台。
 
 ## 功能特性
 
@@ -27,10 +27,7 @@ GraphicsLab/
 │   ├── Renderer/
 │   │   └── Renderer2D.hpp/cpp          # 2D 实例化渲染器
 │   └── Scene/
-│       ├── Scene.hpp                   # 场景抽象基类
-│       ├── BasicShapesScene.hpp/cpp    # 三角形演示
-│       ├── GridScene.hpp/cpp           # 色彩网格演示
-│       └── CirclePatternScene.hpp/cpp  # 动态圆形图案演示
+│       └── Scene.hpp                   # 场景抽象基类
 ├── shaders/                            # GLSL 430 Core 着色器
 │   ├── basic.vert / basic.frag         # 基础三角形
 │   ├── quad.vert / quad.frag           # 实例化四边形
@@ -67,7 +64,7 @@ cmake --build .
 编译产物位于 `bin/` 目录，着色器文件会自动复制到 `bin/shaders/`。
 
 ```bash
-./bin/CGDemo      # 运行
+./bin/CGLab      # 运行
 ```
 
 ## 演示场景
