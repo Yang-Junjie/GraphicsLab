@@ -7,7 +7,6 @@
 #include <glm/glm.hpp>
 #include <vector>
 
-
 class StressTestScene : public Scene {
 public:
     StressTestScene();

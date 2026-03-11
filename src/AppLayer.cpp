@@ -3,6 +3,7 @@
 #include "Scene/Scenes/StressTestScene.hpp"
 #include "Scene/Scenes/TextureScene.hpp"
 #include "Scene/Scenes/TriangleScene.hpp"
+#include "Scene/Scenes/CameraTestScene.hpp"
 
 #include <algorithm>
 #include <glad/glad.h>
@@ -24,6 +25,7 @@ void AppLayer::OnAttach()
     scenes_.push_back(std::make_unique<TriangleScene>());
     scenes_.push_back(std::make_unique<StressTestScene>());
     scenes_.push_back(std::make_unique<TextureScene>());
+    scenes_.push_back(std::make_unique<CameraTestScene>());
 
     current_scene_ = 0;
     scenes_[current_scene_]->OnEnter();
@@ -164,4 +166,9 @@ void AppLayer::OnRenderUI()
     ImGui::End();
 }
 
-void AppLayer::OnEvent(flux::Event& event) {}
+void AppLayer::OnEvent(flux::Event& event)
+{
+    if (!scenes_.empty()) {
+        scenes_[current_scene_]->OnEvent(event);
+    }
+}

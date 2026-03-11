@@ -1,6 +1,5 @@
 #include "TextureScene.hpp"
 
-
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
@@ -31,7 +30,9 @@ GLuint TextureScene::LoadTexture(const std::string& path, int& w, int& h)
     stbi_set_flip_vertically_on_load(true);
     int channels = 0;
     unsigned char* data = stbi_load(path.c_str(), &w, &h, &channels, 0);
-    if (!data) return 0;
+    if (!data) {
+        return 0;
+    }
 
     GLenum format = (channels == 4) ? GL_RGBA : GL_RGB;
 
@@ -67,16 +68,30 @@ void TextureScene::LoadImages()
 
 void TextureScene::InitResources()
 {
-    if (initialized_) return;
+    if (initialized_) {
+        return;
+    }
 
     // Quad vertices: position (x,y) + texcoord (u,v)
     // Origin at center, half-extent 0.5
     float verts[] = {
         // pos        // uv
-        -0.5f, -0.5f, 0.0f, 0.0f,
-         0.5f, -0.5f, 1.0f, 0.0f,
-         0.5f,  0.5f, 1.0f, 1.0f,
-        -0.5f,  0.5f, 0.0f, 1.0f,
+        -0.5f,
+        -0.5f,
+        0.0f,
+        0.0f,
+        0.5f,
+        -0.5f,
+        1.0f,
+        0.0f,
+        0.5f,
+        0.5f,
+        1.0f,
+        1.0f,
+        -0.5f,
+        0.5f,
+        0.0f,
+        1.0f,
     };
     uint32_t indices[] = {0, 1, 2, 0, 2, 3};
 
@@ -87,9 +102,9 @@ void TextureScene::InitResources()
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
     // texcoord
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
-                          reinterpret_cast<void*>(2 * sizeof(float)));
-                          
+    glVertexAttribPointer(
+        1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), reinterpret_cast<void*>(2 * sizeof(float)));
+
     ebo_.Upload(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
     vao_.Unbind();
 
@@ -105,7 +120,9 @@ void TextureScene::InitResources()
 
 void TextureScene::OnRender(float width, float height)
 {
-    if (images_.empty() || !images_[current_image_].texture) return;
+    if (images_.empty() || !images_[current_image_].texture) {
+        return;
+    }
 
     const auto& img = images_[current_image_];
 
@@ -165,7 +182,9 @@ void TextureScene::OnRenderUI()
             if (ImGui::Selectable(images_[i].name.c_str(), selected)) {
                 current_image_ = i;
             }
-            if (selected) ImGui::SetItemDefaultFocus();
+            if (selected) {
+                ImGui::SetItemDefaultFocus();
+            }
         }
         ImGui::EndCombo();
     }

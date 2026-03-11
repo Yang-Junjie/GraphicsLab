@@ -21,6 +21,7 @@ add_executable(CGLab
     src/Scene/Scenes/TriangleScene.cpp
     src/Scene/Scenes/StressTestScene.cpp
     src/Scene/Scenes/TextureScene.cpp
+    src/Scene/Scenes/CameraTestScene.cpp
     thrid_party/stb/stb_image.cpp
 )
 

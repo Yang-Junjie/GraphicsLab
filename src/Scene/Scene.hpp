@@ -3,6 +3,8 @@
 #include <string>
 #include <string_view>
 
+namespace flux { class Event; }
+
 enum class RendererAPI {
     None = 0,
     OpenGL = 1,
@@ -26,6 +28,8 @@ public:
     virtual void OnRender(float width, float height) = 0;
 
     virtual void OnRenderUI() {}
+
+    virtual void OnEvent(flux::Event& event) {}
 
     const std::string& GetName() const
     {

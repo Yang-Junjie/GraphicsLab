@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-
 class TextureScene : public Scene {
 public:
     TextureScene();
