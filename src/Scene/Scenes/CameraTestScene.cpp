@@ -5,6 +5,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
+#include <stb_image.h>
 
 CameraTestScene::CameraTestScene()
     : Scene("Camera Test")
@@ -13,37 +14,62 @@ CameraTestScene::CameraTestScene()
 void CameraTestScene::OnEnter()
 {
     shader_ = std::make_unique<gl::Shader>();
-    shader_->CompileFromFile("shaders/CameraTestScene/camera.vert", "shaders/CameraTestScene/camera.frag");
+    shader_->CompileFromFile("shaders/CameraTestScene/camera.vert",
+                             "shaders/CameraTestScene/camera.frag");
 
-    float quad_vertices[] = {
-        -1.0f,
-        -1.0f,
-        0.0f,
-        1.0f,
-        -1.0f,
-        0.0f,
-        1.0f,
-        1.0f,
-        0.0f,
-        -1.0f,
-        -1.0f,
-        0.0f,
-        1.0f,
-        1.0f,
-        0.0f,
-        -1.0f,
-        1.0f,
-        0.0f,
-    };
+    float vertices[] = {-0.5f, -0.5f, -0.5f, 0.0f, 0.0f, 0.5f,  -0.5f, -0.5f, 1.0f, 0.0f,
+                        0.5f,  0.5f,  -0.5f, 1.0f, 1.0f, 0.5f,  0.5f,  -0.5f, 1.0f, 1.0f,
+                        -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f, -0.5f, -0.5f, -0.5f, 0.0f, 0.0f,
+
+                        -0.5f, -0.5f, 0.5f,  0.0f, 0.0f, 0.5f,  -0.5f, 0.5f,  1.0f, 0.0f,
+                        0.5f,  0.5f,  0.5f,  1.0f, 1.0f, 0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+                        -0.5f, 0.5f,  0.5f,  0.0f, 1.0f, -0.5f, -0.5f, 0.5f,  0.0f, 0.0f,
+
+                        -0.5f, 0.5f,  0.5f,  1.0f, 0.0f, -0.5f, 0.5f,  -0.5f, 1.0f, 1.0f,
+                        -0.5f, -0.5f, -0.5f, 0.0f, 1.0f, -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
+                        -0.5f, -0.5f, 0.5f,  0.0f, 0.0f, -0.5f, 0.5f,  0.5f,  1.0f, 0.0f,
+
+                        0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.5f,  0.5f,  -0.5f, 1.0f, 1.0f,
+                        0.5f,  -0.5f, -0.5f, 0.0f, 1.0f, 0.5f,  -0.5f, -0.5f, 0.0f, 1.0f,
+                        0.5f,  -0.5f, 0.5f,  0.0f, 0.0f, 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+
+                        -0.5f, -0.5f, -0.5f, 0.0f, 1.0f, 0.5f,  -0.5f, -0.5f, 1.0f, 1.0f,
+                        0.5f,  -0.5f, 0.5f,  1.0f, 0.0f, 0.5f,  -0.5f, 0.5f,  1.0f, 0.0f,
+                        -0.5f, -0.5f, 0.5f,  0.0f, 0.0f, -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
+
+                        -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f, 0.5f,  0.5f,  -0.5f, 1.0f, 1.0f,
+                        0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+                        -0.5f, 0.5f,  0.5f,  0.0f, 0.0f, -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f};
 
     quad_vao_ = std::make_unique<gl::VertexArray>();
     quad_vbo_ = std::make_unique<gl::Buffer>();
 
     quad_vao_->Bind();
-    quad_vbo_->Upload(GL_ARRAY_BUFFER, sizeof(quad_vertices), quad_vertices, GL_STATIC_DRAW);
+    quad_vbo_->Upload(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), nullptr);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*) (3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
     quad_vao_->Unbind();
+
+    // Load texture
+    stbi_set_flip_vertically_on_load(true);
+    int tex_w, tex_h, tex_channels;
+    unsigned char* data = stbi_load("res/image/container.jpg", &tex_w, &tex_h, &tex_channels, 0);
+    if (data) {
+        GLenum format = (tex_channels == 4) ? GL_RGBA : GL_RGB;
+        glGenTextures(1, &texture_);
+        glBindTexture(GL_TEXTURE_2D, texture_);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, tex_w, tex_h, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        stbi_image_free(data);
+    }
 
     glEnable(GL_DEPTH_TEST);
 }
@@ -51,6 +77,11 @@ void CameraTestScene::OnEnter()
 void CameraTestScene::OnExit()
 {
     glDisable(GL_DEPTH_TEST);
+
+    if (texture_) {
+        glDeleteTextures(1, &texture_);
+        texture_ = 0;
+    }
 
     quad_vbo_.reset();
     quad_vao_.reset();
@@ -131,6 +162,7 @@ void CameraTestScene::OnUpdate(float dt)
 
 void CameraTestScene::OnRender(float width, float height)
 {
+    glEnable(GL_DEPTH_TEST);
     glClear(GL_DEPTH_BUFFER_BIT);
 
     if (!active_camera_ || camera_mode_ == CameraMode::None) {
@@ -161,14 +193,21 @@ void CameraTestScene::OnRender(float width, float height)
 
     shader_->Bind();
 
-    GLint mvp_loc = shader_->Uniform("u_MVP");
-    GLint color_loc = shader_->Uniform("u_Color");
+    GLint model_loc = shader_->Uniform("u_model");
+    GLint view_loc = shader_->Uniform("u_view");
+    GLint proj_loc = shader_->Uniform("u_projection");
 
-    glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, glm::value_ptr(view_proj));
-    glUniform4f(color_loc, 0.2f, 0.6f, 0.9f, 1.0f);
+    glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
+    glUniformMatrix4fv(view_loc, 1, GL_FALSE, glm::value_ptr(active_camera_->GetViewMatrix()));
+    glUniformMatrix4fv(
+        proj_loc, 1, GL_FALSE, glm::value_ptr(active_camera_->GetProjectionMatrix()));
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture_);
+    glUniform1i(shader_->Uniform("u_Texture"), 0);
 
     quad_vao_->Bind();
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
     quad_vao_->Unbind();
 
     shader_->Unbind();

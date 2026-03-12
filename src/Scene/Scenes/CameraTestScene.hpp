@@ -51,6 +51,7 @@ private:
     std::unique_ptr<gl::Shader> shader_;
     std::unique_ptr<gl::VertexArray> quad_vao_;
     std::unique_ptr<gl::Buffer> quad_vbo_;
+    GLuint texture_ = 0;
 
     // Input state
     std::unordered_set<int> keys_down_;

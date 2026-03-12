@@ -27,6 +27,7 @@ private:
 
     GLuint fbo_ = 0;
     GLuint color_ = 0;
+    GLuint depth_rbo_ = 0;
     int width_ = 0, height_ = 0;
     GLint prev_viewport_[4] = {};
 };
