@@ -74,7 +74,7 @@ TriangleScene::TriangleScene()
 
 void TriangleScene::OnEnter()
 {
-    program_ = LinkProgram("shaders/basic.vert", "shaders/basic.frag");
+    program_ = LinkProgram("shaders/TriangleScene/basic.vert", "shaders/TriangleScene/basic.frag");
     proj_loc_ = glGetUniformLocation(program_, "u_Proj");
 
     glGenVertexArrays(1, &vao_);

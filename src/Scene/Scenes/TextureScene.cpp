@@ -108,7 +108,7 @@ void TextureScene::InitResources()
     ebo_.Upload(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
     vao_.Unbind();
 
-    shader_.CompileFromFile("shaders/textured_quad.vert", "shaders/textured_quad.frag");
+    shader_.CompileFromFile("shaders/TextureScene/textured_quad.vert", "shaders/TextureScene/textured_quad.frag");
     proj_loc_ = shader_.Uniform("u_Proj");
     model_loc_ = shader_.Uniform("u_Model");
     tex_loc_ = shader_.Uniform("u_Texture");

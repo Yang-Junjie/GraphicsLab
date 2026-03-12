@@ -10,33 +10,6 @@
 - **ImGui 集成** — 实时 FPS/帧时间监控、场景选择面板、离屏帧缓冲显示
 - **OpenGL 后端抽象** — RAII 封装 VAO/VBO/EBO/SSBO/FBO/Shader，自动资源管理
 
-## 项目结构
-
-```
-GraphicsLab/
-├── src/
-│   ├── App.hpp/cpp                     # 应用入口
-│   ├── DemoLayer.hpp/cpp               # 主演示层，管理场景与帧流水线
-│   ├── Backend/OpenGL/                 # OpenGL 后端封装
-│   │   ├── Buffer.hpp/cpp              # VBO / EBO / SSBO
-│   │   ├── Shader.hpp/cpp              # Shader 编译与 Uniform 访问
-│   │   ├── VertexArray.hpp/cpp         # VAO 状态管理
-│   │   └── Framebuffer.hpp/cpp         # FBO 离屏渲染
-│   ├── JobSystem/
-│   │   └── JobSystem.hpp/cpp           # 线程池 + 原子计数器同步
-│   ├── Renderer/
-│   │   └── Renderer2D.hpp/cpp          # 2D 实例化渲染器
-│   └── Scene/
-│       └── Scene.hpp                   # 场景抽象基类
-├── shaders/                            # GLSL 430 Core 着色器
-│   ├── basic.vert / basic.frag         # 基础三角形
-│   ├── quad.vert / quad.frag           # 实例化四边形
-│   └── circle.vert / circle.frag      # 实例化圆形
-├── docs/
-│   └── JobSystem.md                    # Job System 详细文档
-├── thrid_party/Flux/                   # 自研应用框架（GLFW + GLAD + GLM + ImGui）
-└── CMakeLists.txt
-```
 
 ## 技术栈
 
@@ -48,7 +21,7 @@ GraphicsLab/
 | 数学库 | GLM |
 | 窗口管理 | GLFW |
 | GUI | ImGui (Docking) |
-| 着色器 | GLSL 430 Core |
+| 着色器 | GLSL 460 Core |
 | 多线程 | std::thread / std::atomic / std::condition_variable |
 
 ## 构建与运行

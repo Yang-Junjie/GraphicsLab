@@ -156,7 +156,7 @@ void StressTestScene::InitGpuResources()
     vao_.Unbind();
 
     // Compute shader
-    compute_program_ = CompileComputeProgram("shaders/particle_update.comp");
+    compute_program_ = CompileComputeProgram("shaders/StressTestScene/particle_update.comp");
     if (compute_program_) {
         cs_dt_loc_ = glGetUniformLocation(compute_program_, "u_DeltaTime");
         cs_screen_loc_ = glGetUniformLocation(compute_program_, "u_ScreenSize");
@@ -164,11 +164,11 @@ void StressTestScene::InitGpuResources()
     }
 
     // Draw shaders (reuse existing circle.frag / quad.frag)
-    quad_draw_shader_.CompileFromFile("shaders/stress_quad.vert", "shaders/quad.frag");
+    quad_draw_shader_.CompileFromFile("shaders/StressTestScene/stress_quad.vert", "shaders/quad.frag");
     quad_proj_loc_ = quad_draw_shader_.Uniform("u_Proj");
     quad_time_loc_ = quad_draw_shader_.Uniform("u_Time");
 
-    circle_draw_shader_.CompileFromFile("shaders/stress_circle.vert", "shaders/circle.frag");
+    circle_draw_shader_.CompileFromFile("shaders/StressTestScene/stress_circle.vert", "shaders/circle.frag");
     circle_proj_loc_ = circle_draw_shader_.Uniform("u_Proj");
     circle_time_loc_ = circle_draw_shader_.Uniform("u_Time");
 

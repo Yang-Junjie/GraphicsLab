@@ -13,7 +13,7 @@ CameraTestScene::CameraTestScene()
 void CameraTestScene::OnEnter()
 {
     shader_ = std::make_unique<gl::Shader>();
-    shader_->CompileFromFile("shaders/camera.vert", "shaders/camera.frag");
+    shader_->CompileFromFile("shaders/CameraTestScene/camera.vert", "shaders/CameraTestScene/camera.frag");
 
     float quad_vertices[] = {
         -1.0f,

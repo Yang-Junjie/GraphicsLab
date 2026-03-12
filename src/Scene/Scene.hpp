@@ -3,7 +3,9 @@
 #include <string>
 #include <string_view>
 
-namespace flux { class Event; }
+namespace flux {
+class Event;
+}
 
 enum class RendererAPI {
     None = 0,
@@ -49,12 +51,12 @@ public:
     static const char* RendererAPIToString(RendererAPI api)
     {
         switch (api) {
-        case RendererAPI::None:
-            return "None";
-        case RendererAPI::OpenGL:
-            return "OpenGL";
-        default:
-            return "Unknown";
+            case RendererAPI::None:
+                return "None";
+            case RendererAPI::OpenGL:
+                return "OpenGL";
+            default:
+                return "Unknown";
         }
     }
 

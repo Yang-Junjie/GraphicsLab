@@ -1,9 +1,9 @@
 #include "AppLayer.hpp"
 #include "Renderer/Renderer2D.hpp"
+#include "Scene/Scenes/CameraTestScene.hpp"
 #include "Scene/Scenes/StressTestScene.hpp"
 #include "Scene/Scenes/TextureScene.hpp"
 #include "Scene/Scenes/TriangleScene.hpp"
-#include "Scene/Scenes/CameraTestScene.hpp"
 
 #include <algorithm>
 #include <glad/glad.h>
@@ -23,9 +23,9 @@ void AppLayer::OnAttach()
     jobs_ = std::make_unique<job::JobSystem>();
 
     scenes_.push_back(std::make_unique<TriangleScene>());
-    scenes_.push_back(std::make_unique<StressTestScene>());
     scenes_.push_back(std::make_unique<TextureScene>());
     scenes_.push_back(std::make_unique<CameraTestScene>());
+    scenes_.push_back(std::make_unique<StressTestScene>());
 
     current_scene_ = 0;
     scenes_[current_scene_]->OnEnter();
