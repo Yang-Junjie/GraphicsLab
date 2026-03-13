@@ -2,6 +2,7 @@
 #include "Renderer/Renderer2D.hpp"
 #include "Scene/Scenes/BaseLighting.hpp"
 #include "Scene/Scenes/CameraTestScene.hpp"
+#include "Scene/Scenes/ModelScene.hpp"
 #include "Scene/Scenes/StressTestScene.hpp"
 #include "Scene/Scenes/TextureScene.hpp"
 #include "Scene/Scenes/TriangleScene.hpp"
@@ -27,6 +28,7 @@ void AppLayer::OnAttach()
     scenes_.push_back(std::make_unique<TextureScene>());
     scenes_.push_back(std::make_unique<CameraTestScene>());
     scenes_.push_back(std::make_unique<BaseLighting>());
+    scenes_.push_back(std::make_unique<ModelScene>());
     scenes_.push_back(std::make_unique<StressTestScene>());
 
     current_scene_ = 0;

@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(BIN_DIR ${CMAKE_SOURCE_DIR}/bin CACHE PATH "Output directory for binaries")
 
 add_subdirectory(thrid_party/Flux)
+add_subdirectory(thrid_party/simdjson)
+add_subdirectory(thrid_party/fastgltf)
 
 add_executable(CGLab
     src/App.cpp
@@ -18,11 +20,15 @@ add_executable(CGLab
     src/Backend/OpenGL/Shader.cpp
     src/Backend/OpenGL/VertexArray.cpp
     src/Renderer/Renderer2D.cpp
+    src/Model/Material.cpp
+    src/Model/Mesh.cpp
+    src/Model/Model.cpp
     src/Scene/Scenes/TriangleScene.cpp
     src/Scene/Scenes/StressTestScene.cpp
     src/Scene/Scenes/TextureScene.cpp
     src/Scene/Scenes/CameraTestScene.cpp
     src/Scene/Scenes/BaseLighting.cpp
+    src/Scene/Scenes/ModelScene.cpp
     thrid_party/stb/stb_image.cpp
 )
 
@@ -34,7 +40,10 @@ target_include_directories(CGLab PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/thrid_party/stb
 )
-target_link_libraries(CGLab PRIVATE FluxCore)
+target_link_libraries(CGLab PRIVATE
+    FluxCore
+    fastgltf::fastgltf
+)
 
 if(MSVC)
     target_compile_options(CGLab PRIVATE /utf-8)
@@ -53,5 +62,3 @@ add_custom_command(TARGET CGLab POST_BUILD
         ${CMAKE_SOURCE_DIR}/res
         $<TARGET_FILE_DIR:CGLab>/res
 )
-
-
