@@ -273,15 +273,13 @@ void AdvancedOpenGL::OnRender(float width, float height)
         model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(-1.0f, 0.0f, -1.0f));
         model = glm::scale(model, glm::vec3(outline_scale_));
-        glUniformMatrix4fv(
-            outline_shader_->Uniform("u_Model"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(outline_shader_->Uniform("u_Model"), 1, GL_FALSE, glm::value_ptr(model));
         glDrawArrays(GL_TRIANGLES, 0, 36);
 
         model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(2.0f, 0.0f, 0.0f));
         model = glm::scale(model, glm::vec3(outline_scale_));
-        glUniformMatrix4fv(
-            outline_shader_->Uniform("u_Model"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(outline_shader_->Uniform("u_Model"), 1, GL_FALSE, glm::value_ptr(model));
         glDrawArrays(GL_TRIANGLES, 0, 36);
 
         outline_shader_->Unbind();

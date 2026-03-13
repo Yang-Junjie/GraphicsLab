@@ -1,6 +1,7 @@
 #include "AppLayer.hpp"
 #include "Renderer/Renderer2D.hpp"
 #include "Scene/Scenes/AdvancedOpenGL.hpp"
+#include "Scene/Scenes/AdvanceLighting.hpp"
 #include "Scene/Scenes/BaseLighting.hpp"
 #include "Scene/Scenes/CameraTestScene.hpp"
 #include "Scene/Scenes/ModelScene.hpp"
@@ -30,6 +31,7 @@ void AppLayer::OnAttach()
     scenes_.push_back(std::make_unique<CameraTestScene>());
     scenes_.push_back(std::make_unique<AdvancedOpenGL>());
     scenes_.push_back(std::make_unique<BaseLighting>());
+    scenes_.push_back(std::make_unique<AdvanceLighting>());
     scenes_.push_back(std::make_unique<ModelScene>());
     scenes_.push_back(std::make_unique<StressTestScene>());
 
