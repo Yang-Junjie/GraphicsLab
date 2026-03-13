@@ -27,6 +27,7 @@ add_executable(CGLab
     src/Scene/Scenes/StressTestScene.cpp
     src/Scene/Scenes/TextureScene.cpp
     src/Scene/Scenes/CameraTestScene.cpp
+    src/Scene/Scenes/AdvancedOpenGL.cpp
     src/Scene/Scenes/BaseLighting.cpp
     src/Scene/Scenes/ModelScene.cpp
     thrid_party/stb/stb_image.cpp
