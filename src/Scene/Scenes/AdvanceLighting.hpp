@@ -46,6 +46,8 @@ private:
 
     // Blinn-Phong parameters
     bool use_blinn_phong_ = true;
+    // 0: None, 1: Gamma Correction with framebuffer sRGB, 2: Manual gamma correction in shader
+    int selected_gamma_correction_ = 0;
     float shininess_ = 32.0f;
     float ambient_strength_ = 0.1f;
     float specular_strength_ = 0.5f;

@@ -131,6 +131,13 @@ void AdvanceLighting::OnUpdate(float dt)
 void AdvanceLighting::OnRender(float width, float height)
 {
     glEnable(GL_DEPTH_TEST);
+
+    if (selected_gamma_correction_ == 1) {
+        glEnable(GL_FRAMEBUFFER_SRGB);
+    } else {
+        glDisable(GL_FRAMEBUFFER_SRGB);
+    }
+
     glClear(GL_DEPTH_BUFFER_BIT);
 
     if (!camera_3d_ || !shader_ || !lamp_shader_) {
@@ -159,6 +166,7 @@ void AdvanceLighting::OnRender(float width, float height)
     glUniform1f(shader_->Uniform("u_AmbientStrength"), ambient_strength_);
     glUniform1f(shader_->Uniform("u_SpecularStrength"), specular_strength_);
     glUniform1i(shader_->Uniform("u_BlinnPhong"), use_blinn_phong_ ? 1 : 0);
+    glUniform1i(shader_->Uniform("u_UseGammaCorrection"), selected_gamma_correction_ == 2 ? 1 : 0);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, floor_texture_);
@@ -194,6 +202,17 @@ void AdvanceLighting::OnRenderUI()
 
     ImGui::Checkbox("Blinn-Phong (B key toggle)", &use_blinn_phong_);
     ImGui::Text("Current: %s", use_blinn_phong_ ? "Blinn-Phong" : "Phong");
+
+    if (ImGui::RadioButton("None", selected_gamma_correction_ == 0)) {
+        selected_gamma_correction_ = 0;
+    }
+    if (ImGui::RadioButton("Gamma Correction with framebuffer sRGB",
+                           selected_gamma_correction_ == 1)) {
+        selected_gamma_correction_ = 1;
+    }
+    if (ImGui::RadioButton("Manual gamma correction in shader", selected_gamma_correction_ == 2)) {
+        selected_gamma_correction_ = 2;
+    }
     ImGui::Separator();
 
     ImGui::Text("Lighting");

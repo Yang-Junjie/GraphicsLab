@@ -14,6 +14,7 @@ uniform float u_Shininess;
 uniform float u_AmbientStrength;
 uniform float u_SpecularStrength;
 uniform int u_BlinnPhong; // 0 = Phong, 1 = Blinn-Phong
+uniform int u_UseGammaCorrection; 
 
 void main()
 {
@@ -42,5 +43,10 @@ void main()
     }
     vec3 specular = u_SpecularStrength * spec * u_LightColor;
 
-    FragColor = vec4(ambient + diffuse + specular, 1.0);
+
+    vec4 final_color = vec4(ambient + diffuse + specular, 1.0);
+    if (u_UseGammaCorrection == 1) {
+        final_color.rgb = pow(final_color.rgb, vec3(1.0 / 2.2));
+    }
+    FragColor = final_color;
 }
