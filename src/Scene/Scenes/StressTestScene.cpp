@@ -148,12 +148,15 @@ void StressTestScene::InitGpuResources()
     float verts[] = {-0.5f, -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, -0.5f, 0.5f};
     uint32_t indices[] = {0, 1, 2, 0, 2, 3};
 
-    vao_.Bind();
-    vbo_.Upload(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
-    ebo_.Upload(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-    vao_.Unbind();
+    vbo_.Storage(sizeof(verts), verts, GL_STATIC_DRAW);
+    ebo_.Storage(sizeof(indices), indices, GL_STATIC_DRAW);
+
+    glVertexArrayVertexBuffer(vao_.Id(), 0, vbo_.Id(), 0, 2 * sizeof(float));
+    glVertexArrayElementBuffer(vao_.Id(), ebo_.Id());
+
+    glEnableVertexArrayAttrib(vao_.Id(), 0);
+    glVertexArrayAttribFormat(vao_.Id(), 0, 2, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribBinding(vao_.Id(), 0, 0);
 
     // Compute shader
     compute_program_ = CompileComputeProgram("shaders/StressTestScene/particle_update.comp");
@@ -164,11 +167,13 @@ void StressTestScene::InitGpuResources()
     }
 
     // Draw shaders (reuse existing circle.frag / quad.frag)
-    quad_draw_shader_.CompileFromFile("shaders/StressTestScene/stress_quad.vert", "shaders/quad.frag");
+    quad_draw_shader_.CompileFromFile("shaders/StressTestScene/stress_quad.vert",
+                                      "shaders/quad.frag");
     quad_proj_loc_ = quad_draw_shader_.Uniform("u_Proj");
     quad_time_loc_ = quad_draw_shader_.Uniform("u_Time");
 
-    circle_draw_shader_.CompileFromFile("shaders/StressTestScene/stress_circle.vert", "shaders/circle.frag");
+    circle_draw_shader_.CompileFromFile("shaders/StressTestScene/stress_circle.vert",
+                                        "shaders/circle.frag");
     circle_proj_loc_ = circle_draw_shader_.Uniform("u_Proj");
     circle_time_loc_ = circle_draw_shader_.Uniform("u_Time");
 
@@ -225,25 +230,21 @@ void StressTestScene::UploadParticles()
     if (quad_ssbo_) {
         glDeleteBuffers(1, &quad_ssbo_);
     }
-    glGenBuffers(1, &quad_ssbo_);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, quad_ssbo_);
-    glBufferData(GL_SHADER_STORAGE_BUFFER,
-                 static_cast<GLsizeiptr>(quad_count_) * sizeof(GpuParticle),
-                 gpu_quads.data(),
-                 GL_DYNAMIC_COPY);
+    glCreateBuffers(1, &quad_ssbo_);
+    glNamedBufferData(quad_ssbo_,
+                      static_cast<GLsizeiptr>(quad_count_) * sizeof(GpuParticle),
+                      gpu_quads.data(),
+                      GL_DYNAMIC_COPY);
 
     // Upload circle SSBO
     if (circle_ssbo_) {
         glDeleteBuffers(1, &circle_ssbo_);
     }
-    glGenBuffers(1, &circle_ssbo_);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, circle_ssbo_);
-    glBufferData(GL_SHADER_STORAGE_BUFFER,
-                 static_cast<GLsizeiptr>(circle_count_) * sizeof(GpuParticle),
-                 gpu_circles.data(),
-                 GL_DYNAMIC_COPY);
-
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    glCreateBuffers(1, &circle_ssbo_);
+    glNamedBufferData(circle_ssbo_,
+                      static_cast<GLsizeiptr>(circle_count_) * sizeof(GpuParticle),
+                      gpu_circles.data(),
+                      GL_DYNAMIC_COPY);
 }
 
 // ---- CPU-mode particle init (for Renderer2D path) ----

@@ -35,15 +35,21 @@ void AdvanceLighting::OnEnter()
     floor_vao_ = std::make_unique<gl::VertexArray>();
     floor_vbo_ = std::make_unique<gl::Buffer>();
 
-    floor_vao_->Bind();
-    floor_vbo_->Upload(GL_ARRAY_BUFFER, sizeof(floor_vertices), floor_vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), nullptr);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*) (3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*) (6 * sizeof(float)));
-    glEnableVertexAttribArray(2);
-    floor_vao_->Unbind();
+    floor_vbo_->Storage(sizeof(floor_vertices), floor_vertices, GL_STATIC_DRAW);
+
+    glVertexArrayVertexBuffer(floor_vao_->Id(), 0, floor_vbo_->Id(), 0, 8 * sizeof(float));
+
+    glEnableVertexArrayAttrib(floor_vao_->Id(), 0);
+    glVertexArrayAttribFormat(floor_vao_->Id(), 0, 3, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribBinding(floor_vao_->Id(), 0, 0);
+
+    glEnableVertexArrayAttrib(floor_vao_->Id(), 1);
+    glVertexArrayAttribFormat(floor_vao_->Id(), 1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float));
+    glVertexArrayAttribBinding(floor_vao_->Id(), 1, 0);
+
+    glEnableVertexArrayAttrib(floor_vao_->Id(), 2);
+    glVertexArrayAttribFormat(floor_vao_->Id(), 2, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float));
+    glVertexArrayAttribBinding(floor_vao_->Id(), 2, 0);
 
     // Light cube geometry (reuse simple cube)
     float lamp_vertices[] = {
@@ -61,11 +67,13 @@ void AdvanceLighting::OnEnter()
     lamp_vao_ = std::make_unique<gl::VertexArray>();
     lamp_vbo_ = std::make_unique<gl::Buffer>();
 
-    lamp_vao_->Bind();
-    lamp_vbo_->Upload(GL_ARRAY_BUFFER, sizeof(lamp_vertices), lamp_vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
-    glEnableVertexAttribArray(0);
-    lamp_vao_->Unbind();
+    lamp_vbo_->Storage(sizeof(lamp_vertices), lamp_vertices, GL_STATIC_DRAW);
+
+    glVertexArrayVertexBuffer(lamp_vao_->Id(), 0, lamp_vbo_->Id(), 0, 3 * sizeof(float));
+
+    glEnableVertexArrayAttrib(lamp_vao_->Id(), 0);
+    glVertexArrayAttribFormat(lamp_vao_->Id(), 0, 3, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribBinding(lamp_vao_->Id(), 0, 0);
 
     floor_texture_ = LoadTexture("res/image/get.png");
 
@@ -168,8 +176,7 @@ void AdvanceLighting::OnRender(float width, float height)
     glUniform1i(shader_->Uniform("u_BlinnPhong"), use_blinn_phong_ ? 1 : 0);
     glUniform1i(shader_->Uniform("u_UseGammaCorrection"), selected_gamma_correction_ == 2 ? 1 : 0);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, floor_texture_);
+    glBindTextureUnit(0, floor_texture_);
     glUniform1i(shader_->Uniform("u_FloorTexture"), 0);
 
     floor_vao_->Bind();
@@ -272,22 +279,28 @@ GLuint AdvanceLighting::LoadTexture(const char* path)
     }
 
     GLenum format = GL_RGB;
+    GLenum internal_format = GL_RGB8;
     if (tex_channels == 1) {
         format = GL_RED;
+        internal_format = GL_R8;
     } else if (tex_channels == 4) {
         format = GL_RGBA;
+        internal_format = GL_RGBA8;
     }
 
+    int max_dim = (tex_w > tex_h) ? tex_w : tex_h;
+    int levels = 1;
+    while (max_dim > 1) { max_dim >>= 1; ++levels; }
+
     GLuint texture = 0;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, format, tex_w, tex_h, 0, format, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    glCreateTextures(GL_TEXTURE_2D, 1, &texture);
+    glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTextureStorage2D(texture, levels, internal_format, tex_w, tex_h);
+    glTextureSubImage2D(texture, 0, 0, 0, tex_w, tex_h, format, GL_UNSIGNED_BYTE, data);
+    glGenerateTextureMipmap(texture);
 
     stbi_image_free(data);
     return texture;

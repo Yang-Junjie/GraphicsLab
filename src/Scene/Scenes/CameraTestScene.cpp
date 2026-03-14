@@ -44,14 +44,17 @@ void CameraTestScene::OnEnter()
     quad_vao_ = std::make_unique<gl::VertexArray>();
     quad_vbo_ = std::make_unique<gl::Buffer>();
 
-    quad_vao_->Bind();
-    quad_vbo_->Upload(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), nullptr);
-    glEnableVertexAttribArray(0);
+    quad_vbo_->Storage(sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*) (3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-    quad_vao_->Unbind();
+    glVertexArrayVertexBuffer(quad_vao_->Id(), 0, quad_vbo_->Id(), 0, 5 * sizeof(float));
+
+    glEnableVertexArrayAttrib(quad_vao_->Id(), 0);
+    glVertexArrayAttribFormat(quad_vao_->Id(), 0, 3, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribBinding(quad_vao_->Id(), 0, 0);
+
+    glEnableVertexArrayAttrib(quad_vao_->Id(), 1);
+    glVertexArrayAttribFormat(quad_vao_->Id(), 1, 2, GL_FLOAT, GL_FALSE, 3 * sizeof(float));
+    glVertexArrayAttribBinding(quad_vao_->Id(), 1, 0);
 
     // Load texture
     stbi_set_flip_vertically_on_load(true);
@@ -59,15 +62,20 @@ void CameraTestScene::OnEnter()
     unsigned char* data = stbi_load("res/image/container.jpg", &tex_w, &tex_h, &tex_channels, 0);
     if (data) {
         GLenum format = (tex_channels == 4) ? GL_RGBA : GL_RGB;
-        glGenTextures(1, &texture_);
-        glBindTexture(GL_TEXTURE_2D, texture_);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexImage2D(GL_TEXTURE_2D, 0, format, tex_w, tex_h, 0, format, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        GLenum internal_format = (tex_channels == 4) ? GL_RGBA8 : GL_RGB8;
+
+        int max_dim = (tex_w > tex_h) ? tex_w : tex_h;
+        int levels = 1;
+        while (max_dim > 1) { max_dim >>= 1; ++levels; }
+
+        glCreateTextures(GL_TEXTURE_2D, 1, &texture_);
+        glTextureParameteri(texture_, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTextureParameteri(texture_, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTextureParameteri(texture_, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTextureParameteri(texture_, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTextureStorage2D(texture_, levels, internal_format, tex_w, tex_h);
+        glTextureSubImage2D(texture_, 0, 0, 0, tex_w, tex_h, format, GL_UNSIGNED_BYTE, data);
+        glGenerateTextureMipmap(texture_);
         stbi_image_free(data);
     }
 
@@ -202,8 +210,7 @@ void CameraTestScene::OnRender(float width, float height)
     glUniformMatrix4fv(
         proj_loc, 1, GL_FALSE, glm::value_ptr(active_camera_->GetProjectionMatrix()));
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texture_);
+    glBindTextureUnit(0, texture_);
     glUniform1i(shader_->Uniform("u_Texture"), 0);
 
     quad_vao_->Bind();

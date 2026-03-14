@@ -39,14 +39,11 @@ static void CreatePersistentSSBO(PersistentSSBO& buf, size_t stride, uint32_t ca
 
     GLsizeiptr total = static_cast<GLsizeiptr>(buf.partition_bytes) * 3;
 
-    glGenBuffers(1, &buf.id);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, buf.id);
+    glCreateBuffers(1, &buf.id);
 
     GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
-    glBufferStorage(GL_SHADER_STORAGE_BUFFER, total, nullptr, flags);
-    buf.mapped = glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, total, flags);
-
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    glNamedBufferStorage(buf.id, total, nullptr, flags);
+    buf.mapped = glMapNamedBufferRange(buf.id, 0, total, flags);
 }
 
 static void WaitFence(PersistentSSBO& buf, int index)
@@ -72,9 +69,7 @@ static void DestroyPersistentSSBO(PersistentSSBO& buf)
     for (int i = 0; i < 3; ++i) {
         WaitFence(buf, i);
     }
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, buf.id);
-    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    glUnmapNamedBuffer(buf.id);
     glDeleteBuffers(1, &buf.id);
     buf.id = 0;
     buf.mapped = nullptr;
@@ -163,12 +158,15 @@ void Renderer2D::Init(const std::string& shader_dir, uint32_t max_quads, uint32_
     };
     uint32_t indices[] = {0, 1, 2, 0, 2, 3};
 
-    s_state->vao.Bind();
-    s_state->vbo.Upload(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
-    s_state->ebo.Upload(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-    s_state->vao.Unbind();
+    s_state->vbo.Storage(sizeof(verts), verts, GL_STATIC_DRAW);
+    s_state->ebo.Storage(sizeof(indices), indices, GL_STATIC_DRAW);
+
+    glVertexArrayVertexBuffer(s_state->vao.Id(), 0, s_state->vbo.Id(), 0, 2 * sizeof(float));
+    glVertexArrayElementBuffer(s_state->vao.Id(), s_state->ebo.Id());
+
+    glEnableVertexArrayAttrib(s_state->vao.Id(), 0);
+    glVertexArrayAttribFormat(s_state->vao.Id(), 0, 2, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribBinding(s_state->vao.Id(), 0, 0);
 
     // Persistent SSBOs with triple buffering
     CreatePersistentSSBO(s_state->quad_ssbo, sizeof(QuadInstance), max_quads);

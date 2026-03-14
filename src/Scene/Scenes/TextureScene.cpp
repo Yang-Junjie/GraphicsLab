@@ -28,6 +28,7 @@ void TextureScene::OnExit() {}
 GLuint TextureScene::LoadTexture(const std::string& path, int& w, int& h)
 {
     stbi_set_flip_vertically_on_load(true);
+
     int channels = 0;
     unsigned char* data = stbi_load(path.c_str(), &w, &h, &channels, 0);
     if (!data) {
@@ -35,19 +36,19 @@ GLuint TextureScene::LoadTexture(const std::string& path, int& w, int& h)
     }
 
     GLenum format = (channels == 4) ? GL_RGBA : GL_RGB;
+    GLenum internal = (channels == 4) ? GL_RGBA8 : GL_RGB8;
 
     GLuint tex = 0;
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, format, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
+    glCreateTextures(GL_TEXTURE_2D, 1, &tex);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTextureStorage2D(tex, 1, internal, w, h);
+    glTextureSubImage2D(tex, 0, 0, 0, w, h, format, GL_UNSIGNED_BYTE, data);
 
-    glBindTexture(GL_TEXTURE_2D, 0);
+    glTextureParameteri(tex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(tex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(tex, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(tex, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
     stbi_image_free(data);
     return tex;
 }
@@ -95,20 +96,23 @@ void TextureScene::InitResources()
     };
     uint32_t indices[] = {0, 1, 2, 0, 2, 3};
 
-    vao_.Bind();
-    vbo_.Upload(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
+    vbo_.Storage(sizeof(verts), verts, GL_STATIC_DRAW);
+    ebo_.Storage(sizeof(indices), indices, GL_STATIC_DRAW);
+
+    glVertexArrayVertexBuffer(vao_.Id(), 0, vbo_.Id(), 0, 4 * sizeof(float));
+    glVertexArrayElementBuffer(vao_.Id(), ebo_.Id());
+
     // position
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
+    glEnableVertexArrayAttrib(vao_.Id(), 0);
+    glVertexArrayAttribFormat(vao_.Id(), 0, 2, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribBinding(vao_.Id(), 0, 0);
     // texcoord
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(
-        1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), reinterpret_cast<void*>(2 * sizeof(float)));
+    glEnableVertexArrayAttrib(vao_.Id(), 1);
+    glVertexArrayAttribFormat(vao_.Id(), 1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float));
+    glVertexArrayAttribBinding(vao_.Id(), 1, 0);
 
-    ebo_.Upload(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-    vao_.Unbind();
-
-    shader_.CompileFromFile("shaders/TextureScene/textured_quad.vert", "shaders/TextureScene/textured_quad.frag");
+    shader_.CompileFromFile("shaders/TextureScene/textured_quad.vert",
+                            "shaders/TextureScene/textured_quad.frag");
     proj_loc_ = shader_.Uniform("u_Proj");
     model_loc_ = shader_.Uniform("u_Model");
     tex_loc_ = shader_.Uniform("u_Texture");
@@ -156,8 +160,7 @@ void TextureScene::OnRender(float width, float height)
     glUniformMatrix4fv(proj_loc_, 1, GL_FALSE, glm::value_ptr(proj));
     glUniformMatrix4fv(model_loc_, 1, GL_FALSE, glm::value_ptr(model));
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, img.texture);
+    glBindTextureUnit(0, img.texture);
     glUniform1i(tex_loc_, 0);
 
     vao_.Bind();

@@ -4,7 +4,7 @@ namespace gl {
 
 VertexArray::VertexArray()
 {
-    glGenVertexArrays(1, &id_);
+    glCreateVertexArrays(1, &id_);
 }
 
 VertexArray::~VertexArray()

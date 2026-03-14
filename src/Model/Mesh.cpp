@@ -52,40 +52,26 @@ void Mesh::SetupGpuResources()
     vbo_ = std::make_unique<gl::Buffer>();
     ebo_ = std::make_unique<gl::Buffer>();
 
-    vao_->Bind();
+    vbo_->Storage(static_cast<GLsizeiptr>(vertices_.size() * sizeof(MeshVertex)),
+                  vertices_.data(),
+                  GL_STATIC_DRAW);
+    ebo_->Storage(static_cast<GLsizeiptr>(indices_.size() * sizeof(std::uint32_t)),
+                  indices_.data(),
+                  GL_STATIC_DRAW);
 
-    vbo_->Upload(GL_ARRAY_BUFFER,
-                 static_cast<GLsizeiptr>(vertices_.size() * sizeof(MeshVertex)),
-                 vertices_.data(),
-                 GL_STATIC_DRAW);
-    ebo_->Upload(GL_ELEMENT_ARRAY_BUFFER,
-                 static_cast<GLsizeiptr>(indices_.size() * sizeof(std::uint32_t)),
-                 indices_.data(),
-                 GL_STATIC_DRAW);
+    GLuint vao = vao_->Id();
+    glVertexArrayVertexBuffer(vao, 0, vbo_->Id(), 0, sizeof(MeshVertex));
+    glVertexArrayElementBuffer(vao, ebo_->Id());
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0,
-                          3,
-                          GL_FLOAT,
-                          GL_FALSE,
-                          sizeof(MeshVertex),
-                          reinterpret_cast<void*>(offsetof(MeshVertex, position)));
+    glEnableVertexArrayAttrib(vao, 0);
+    glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(MeshVertex, position));
+    glVertexArrayAttribBinding(vao, 0, 0);
 
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1,
-                          3,
-                          GL_FLOAT,
-                          GL_FALSE,
-                          sizeof(MeshVertex),
-                          reinterpret_cast<void*>(offsetof(MeshVertex, normal)));
+    glEnableVertexArrayAttrib(vao, 1);
+    glVertexArrayAttribFormat(vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(MeshVertex, normal));
+    glVertexArrayAttribBinding(vao, 1, 0);
 
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2,
-                          2,
-                          GL_FLOAT,
-                          GL_FALSE,
-                          sizeof(MeshVertex),
-                          reinterpret_cast<void*>(offsetof(MeshVertex, texcoord)));
-
-    vao_->Unbind();
+    glEnableVertexArrayAttrib(vao, 2);
+    glVertexArrayAttribFormat(vao, 2, 2, GL_FLOAT, GL_FALSE, offsetof(MeshVertex, texcoord));
+    glVertexArrayAttribBinding(vao, 2, 0);
 }

@@ -4,7 +4,7 @@ namespace gl {
 
 Buffer::Buffer()
 {
-    glGenBuffers(1, &id_);
+    glCreateBuffers(1, &id_);
 }
 
 Buffer::~Buffer()
@@ -14,14 +14,20 @@ Buffer::~Buffer()
     }
 }
 
-void Buffer::Bind(GLenum target) const
+Buffer::Buffer(Buffer&& other) noexcept
 {
-    glBindBuffer(target, id_);
+    id_ = other.id_;
+    other.id_ = 0;
 }
 
-void Buffer::Unbind(GLenum target) const
+Buffer& Buffer::operator=(Buffer&& other) noexcept
 {
-    glBindBuffer(target, 0);
+    if (this != &other) {
+        glDeleteBuffers(1, &id_);
+        id_ = other.id_;
+        other.id_ = 0;
+    }
+    return *this;
 }
 
 GLuint Buffer::Id() const
@@ -29,10 +35,14 @@ GLuint Buffer::Id() const
     return id_;
 }
 
-void Buffer::Upload(GLenum target, GLsizeiptr size, const void* data, GLenum usage) const
+void Buffer::Storage(GLsizeiptr size, const void* data, GLenum usage) const
 {
-    glBindBuffer(target, id_);
-    glBufferData(target, size, data, usage);
+    glNamedBufferData(id_, size, data, usage);
+}
+
+void Buffer::SubData(GLintptr offset, GLsizeiptr size, const void* data) const
+{
+    glNamedBufferSubData(id_, offset, size, data);
 }
 
 void Buffer::BindBase(GLenum target, GLuint index) const
