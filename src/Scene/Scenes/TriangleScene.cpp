@@ -1,13 +1,11 @@
 #include "TriangleScene.hpp"
 
-#include <algorithm>
 #include <fstream>
-#include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <iostream>
 #include <sstream>
-#include <string>
 
-// ---- helpers (file-local) --------------------------------------------------
+// ---- helpers ------------------------------------------------------
 
 static std::string ReadFile(const char* path)
 {
@@ -28,6 +26,9 @@ static GLuint CompileStage(GLenum type, const char* src)
     GLint ok;
     glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
     if (!ok) {
+        char log[1'024];
+        glGetShaderInfoLog(s, 1'024, nullptr, log);
+        std::cerr << log << std::endl;
         glDeleteShader(s);
         return 0;
     }
@@ -54,19 +55,23 @@ static GLuint LinkProgram(const char* vert_path, const char* frag_path)
     glAttachShader(prog, vs);
     glAttachShader(prog, fs);
     glLinkProgram(prog);
-    glDeleteShader(vs);
-    glDeleteShader(fs);
 
     GLint ok;
     glGetProgramiv(prog, GL_LINK_STATUS, &ok);
     if (!ok) {
+        char log[1'024];
+        glGetProgramInfoLog(prog, 1'024, nullptr, log);
+        std::cerr << log << std::endl;
         glDeleteProgram(prog);
         return 0;
     }
+
+    glDeleteShader(vs);
+    glDeleteShader(fs);
     return prog;
 }
 
-// ---- TriangleScene ------------------------------------------------------
+// ---- TriangleScene -------------------------------------------------
 
 TriangleScene::TriangleScene()
     : Scene("Basic Shapes")
@@ -75,63 +80,64 @@ TriangleScene::TriangleScene()
 void TriangleScene::OnEnter()
 {
     program_ = LinkProgram("shaders/TriangleScene/basic.vert", "shaders/TriangleScene/basic.frag");
-    proj_loc_ = glGetUniformLocation(program_, "u_Proj");
 
-    glGenVertexArrays(1, &vao_);
-    glGenBuffers(1, &vbo_);
+    // clang-format off
+    float vertices[] = {
+         0.0f,  0.5f, 0.0f,  1,0,0,
+        -0.5f, -0.5f, 0.0f,  0,1,0,
+         0.5f, -0.5f, 0.0f,  0,0,1
+    };
+    // clang-format on
 
-    glBindVertexArray(vao_);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_);
+    // ---- 创建 VBO ----
+    glCreateBuffers(1, &vbo_);
+    glNamedBufferData(vbo_, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-    // layout: vec2 pos + vec4 color  (stride = 6 floats)
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*) 0);
+    // ---- 创建 VAO ----
+    glCreateVertexArrays(1, &vao_);
+    glVertexArrayVertexBuffer(vao_, 0, vbo_, 0, sizeof(float) * 6);
 
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*) (2 * sizeof(float)));
+    glEnableVertexArrayAttrib(vao_, 0); // position
+    glEnableVertexArrayAttrib(vao_, 1); // color
 
-    glBindVertexArray(0);
+    glVertexArrayAttribFormat(vao_, 0, 3, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribFormat(vao_, 1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3);
+
+    glVertexArrayAttribBinding(vao_, 0, 0);
+    glVertexArrayAttribBinding(vao_, 1, 0);
+
+    // ---- 创建间接绘制 buffer ----
+    struct DrawArraysIndirectCommand {
+        GLuint count;         // 顶点数量
+        GLuint instanceCount; // 实例数量
+        GLuint first;         // 起始顶点
+        GLuint baseInstance;  // baseInstance
+    };
+
+    DrawArraysIndirectCommand cmd = {3, 1, 0, 0}; // 三角形, 单实例
+
+    glCreateBuffers(1, &indirectBuffer_);
+    glNamedBufferData(indirectBuffer_, sizeof(cmd), &cmd, GL_STATIC_DRAW);
 }
 
 void TriangleScene::OnExit()
 {
     glDeleteBuffers(1, &vbo_);
     glDeleteVertexArrays(1, &vao_);
+    glDeleteBuffers(1, &indirectBuffer_);
     glDeleteProgram(program_);
-    vbo_ = 0;
-    vao_ = 0;
-    program_ = 0;
+    vbo_ = vao_ = indirectBuffer_ = program_ = 0;
 }
 
 void TriangleScene::OnRender(float width, float height)
 {
-    float cx = width * 0.5f;
-    float cy = height * 0.5f;
-    float r = std::min(width, height) * 0.3f;
-
-    constexpr float sin60 = 0.866025f;
-    constexpr float cos60 = 0.5f;
-
-    // clang-format off
-    float vertices[] = {
-        //  position                         color (RGBA)
-        cx,              cy - r,           1.0f, 0.2f, 0.2f, 1.0f,  // top – red
-        cx - r * sin60,  cy + r * cos60,   0.2f, 1.0f, 0.2f, 1.0f,  // bottom-left – green
-        cx + r * sin60,  cy + r * cos60,   0.2f, 0.4f, 1.0f, 1.0f,  // bottom-right – blue
-    };
-    // clang-format on
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
-
-    glm::mat4 proj = glm::ortho(0.0f, width, height, 0.0f);
-
     glUseProgram(program_);
-    glUniformMatrix4fv(proj_loc_, 1, GL_FALSE, glm::value_ptr(proj));
 
     glBindVertexArray(vao_);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    glBindVertexArray(0);
+    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, indirectBuffer_);
+
+    // 使用现代 indirect draw call
+    glMultiDrawArraysIndirect(GL_TRIANGLES, 0, 1, 0);
 
     glUseProgram(0);
 }

@@ -16,5 +16,5 @@ private:
     GLuint program_ = 0;
     GLuint vao_ = 0;
     GLuint vbo_ = 0;
-    GLint proj_loc_ = -1;
+    GLuint indirectBuffer_ = 0;
 };
