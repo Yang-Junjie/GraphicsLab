@@ -69,6 +69,56 @@ bool Shader::CompileFromFile(const std::string& vert_path, const std::string& fr
     return Compile(vert_src.c_str(), frag_src.c_str());
 }
 
+bool Shader::Compile(const char* vert_src, const char* tcs_src, const char* tes_src, const char* frag_src)
+{
+    GLuint vs = CompileStage(GL_VERTEX_SHADER, vert_src);
+    GLuint tc = CompileStage(GL_TESS_CONTROL_SHADER, tcs_src);
+    GLuint te = CompileStage(GL_TESS_EVALUATION_SHADER, tes_src);
+    GLuint fs = CompileStage(GL_FRAGMENT_SHADER, frag_src);
+    if (!vs || !tc || !te || !fs) {
+        glDeleteShader(vs);
+        glDeleteShader(tc);
+        glDeleteShader(te);
+        glDeleteShader(fs);
+        return false;
+    }
+
+    id_ = glCreateProgram();
+    glAttachShader(id_, vs);
+    glAttachShader(id_, tc);
+    glAttachShader(id_, te);
+    glAttachShader(id_, fs);
+    glLinkProgram(id_);
+    glDeleteShader(vs);
+    glDeleteShader(tc);
+    glDeleteShader(te);
+    glDeleteShader(fs);
+
+    GLint ok;
+    glGetProgramiv(id_, GL_LINK_STATUS, &ok);
+    if (!ok) {
+        char log[512];
+        glGetProgramInfoLog(id_, sizeof(log), nullptr, log);
+        glDeleteProgram(id_);
+        id_ = 0;
+        return false;
+    }
+    return true;
+}
+
+bool Shader::CompileFromFile(const std::string& vert_path, const std::string& tcs_path,
+                             const std::string& tes_path, const std::string& frag_path)
+{
+    std::string vert_src = ReadFile(vert_path);
+    std::string tcs_src = ReadFile(tcs_path);
+    std::string tes_src = ReadFile(tes_path);
+    std::string frag_src = ReadFile(frag_path);
+    if (vert_src.empty() || tcs_src.empty() || tes_src.empty() || frag_src.empty()) {
+        return false;
+    }
+    return Compile(vert_src.c_str(), tcs_src.c_str(), tes_src.c_str(), frag_src.c_str());
+}
+
 void Shader::Bind() const
 {
     glUseProgram(id_);

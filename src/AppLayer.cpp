@@ -2,6 +2,8 @@
 #include "Renderer/Renderer2D.hpp"
 #include "Scene/Scenes/AdvanceLighting.hpp"
 #include "Scene/Scenes/BaseLighting.hpp"
+#include "Scene/Scenes/BezierCurveScene.hpp"
+#include "Scene/Scenes/BezierSurfaceScene.hpp"
 #include "Scene/Scenes/CameraTestScene.hpp"
 #include "Scene/Scenes/ModelScene.hpp"
 #include "Scene/Scenes/StressTestScene.hpp"
@@ -32,6 +34,8 @@ void AppLayer::OnAttach()
     scenes_.push_back(std::make_unique<AdvanceLighting>());
     scenes_.push_back(std::make_unique<ModelScene>());
     scenes_.push_back(std::make_unique<StressTestScene>());
+    scenes_.push_back(std::make_unique<BezierCurveScene>());
+    scenes_.push_back(std::make_unique<BezierSurfaceScene>());
 
     current_scene_ = 0;
     scenes_[current_scene_]->OnEnter();

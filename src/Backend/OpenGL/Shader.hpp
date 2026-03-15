@@ -18,7 +18,10 @@ public:
     Shader& operator=(Shader&& o) noexcept;
 
     bool Compile(const char* vert_src, const char* frag_src);
+    bool Compile(const char* vert_src, const char* tcs_src, const char* tes_src, const char* frag_src);
     bool CompileFromFile(const std::string& vert_path, const std::string& frag_path);
+    bool CompileFromFile(const std::string& vert_path, const std::string& tcs_path,
+                         const std::string& tes_path, const std::string& frag_path);
 
     void Bind() const;
     void Unbind() const;

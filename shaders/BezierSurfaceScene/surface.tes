@@ -1,0 +1,64 @@
+#version 460 core
+
+layout(quads, equal_spacing, ccw) in;
+
+uniform mat4 u_MVP;
+uniform mat4 u_Model;
+
+out vec3 v_WorldPos;
+out vec3 v_Normal;
+
+// Cubic Bernstein basis
+vec4 bernstein(float t)
+{
+    float t1 = 1.0 - t;
+    return vec4(t1 * t1 * t1,
+                3.0 * t1 * t1 * t,
+                3.0 * t1 * t * t,
+                t * t * t);
+}
+
+// Derivative of cubic Bernstein basis
+vec4 dbernstein(float t)
+{
+    float t1 = 1.0 - t;
+    return vec4(-3.0 * t1 * t1,
+                3.0 * t1 * t1 - 6.0 * t1 * t,
+                6.0 * t1 * t - 3.0 * t * t,
+                3.0 * t * t);
+}
+
+void main()
+{
+    float u = gl_TessCoord.x;
+    float v = gl_TessCoord.y;
+
+    vec4 bu = bernstein(u);
+    vec4 bv = bernstein(v);
+    vec4 dbu = dbernstein(u);
+    vec4 dbv = dbernstein(v);
+
+    // Evaluate bicubic Bezier surface: S(u,v) = sum_i sum_j B_i(u) * B_j(v) * P_ij
+    // Control points are indexed as gl_in[i * 4 + j] where i=row(v), j=col(u)
+    vec3 pos = vec3(0.0);
+    vec3 du = vec3(0.0);
+    vec3 dv = vec3(0.0);
+
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            vec3 cp = gl_in[i * 4 + j].gl_Position.xyz;
+            float bij = bu[j] * bv[i];
+            pos += bij * cp;
+            du += dbu[j] * bv[i] * cp;
+            dv += bu[j] * dbv[i] * cp;
+        }
+    }
+
+    // Normal from cross product of partial derivatives
+    vec3 normal = normalize(cross(du, dv));
+
+    v_WorldPos = vec3(u_Model * vec4(pos, 1.0));
+    v_Normal = normalize(mat3(transpose(inverse(u_Model))) * normal);
+
+    gl_Position = u_MVP * vec4(pos, 1.0);
+}

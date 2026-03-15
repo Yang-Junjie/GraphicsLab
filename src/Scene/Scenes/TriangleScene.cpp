@@ -136,7 +136,6 @@ void TriangleScene::OnRender(float width, float height)
     glBindVertexArray(vao_);
     glBindBuffer(GL_DRAW_INDIRECT_BUFFER, indirectBuffer_);
 
-    // 使用现代 indirect draw call
     glMultiDrawArraysIndirect(GL_TRIANGLES, 0, 1, 0);
 
     glUseProgram(0);
