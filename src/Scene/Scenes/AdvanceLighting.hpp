@@ -24,6 +24,7 @@ public:
 
 private:
     GLuint LoadTexture(const char* path);
+    void RenderScene(gl::Shader& shader);
 
     bool OnKeyPressed(int keycode);
     bool OnKeyReleased(int keycode);
@@ -35,11 +36,20 @@ private:
     // OpenGL resources
     std::unique_ptr<gl::Shader> shader_;
     std::unique_ptr<gl::Shader> lamp_shader_;
+    std::unique_ptr<gl::Shader> depth_shader_;
     std::unique_ptr<gl::VertexArray> floor_vao_;
-    std::unique_ptr<gl::VertexArray> lamp_vao_;
+    std::unique_ptr<gl::VertexArray> cube_vao_;
+    std::unique_ptr<gl::VertexArray> scene_cube_vao_;
     std::unique_ptr<gl::Buffer> floor_vbo_;
-    std::unique_ptr<gl::Buffer> lamp_vbo_;
+    std::unique_ptr<gl::Buffer> cube_vbo_;
+    std::unique_ptr<gl::Buffer> scene_cube_vbo_;
     GLuint floor_texture_ = 0;
+    GLuint depth_map_fbo_ = 0;
+    GLuint depth_map_texture_ = 0;
+
+    // shadow mapping parameters
+    const unsigned int shadow_width_ = 1'024;
+    const unsigned int shadow_height_ = 1'024;
 
     // Camera
     std::unique_ptr<Camera3D> camera_3d_;
@@ -51,8 +61,11 @@ private:
     float shininess_ = 32.0f;
     float ambient_strength_ = 0.1f;
     float specular_strength_ = 0.5f;
-    glm::vec3 light_pos_ = glm::vec3(0.0f, 3.0f, 0.0f);
+    glm::vec3 light_pos_ = glm::vec3(-2.0f, 4.0f, -1.0f);
     glm::vec3 light_color_ = glm::vec3(1.0f);
+
+    // Shadow mapping parameters
+    bool enable_shadows_ = true;
 
     // Input state
     std::unordered_set<int> keys_down_;

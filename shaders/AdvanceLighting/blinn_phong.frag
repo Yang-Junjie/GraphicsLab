@@ -3,10 +3,12 @@
 in vec3 v_FragPos;
 in vec3 v_Normal;
 in vec2 v_TexCoord;
+in vec4 v_FragPosLightSpace;
 
 out vec4 FragColor;
 
 uniform sampler2D u_FloorTexture;
+uniform sampler2D u_ShadowMap;
 uniform vec3 u_LightPos;
 uniform vec3 u_ViewPos;
 uniform vec3 u_LightColor;
@@ -14,7 +16,33 @@ uniform float u_Shininess;
 uniform float u_AmbientStrength;
 uniform float u_SpecularStrength;
 uniform int u_BlinnPhong; // 0 = Phong, 1 = Blinn-Phong
-uniform int u_UseGammaCorrection; 
+uniform int u_UseGammaCorrection;
+uniform int u_EnableShadows;
+
+float ShadowCalculation(vec4 fragPosLightSpace)
+{
+    // 将片段位置从齐次裁剪空间转换到纹理坐标空间
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+
+    // 将范围从 [-1, 1] 转换到 [0, 1]
+    projCoords = projCoords * 0.5 + 0.5;
+
+    // 处理光锥体外的区域
+    if (projCoords.z > 1.0)
+        return 0.0;
+
+    // 获取阴影贴图中存储的最近深度
+    float closestDepth = texture(u_ShadowMap, projCoords.xy).r; 
+
+    // 获取当前像素的深度
+    float currentDepth = projCoords.z;
+
+    // 计算阴影偏移，防止阴影 acne
+    float bias =  max(0.05 * (1.0 - dot(normalize(v_Normal), normalize(u_LightPos - v_FragPos))), 0.005);
+    float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+
+    return shadow;
+}
 
 void main()
 {
@@ -43,8 +71,13 @@ void main()
     }
     vec3 specular = u_SpecularStrength * spec * u_LightColor;
 
+    // shadow
+    float shadow = 0.0;
+    if (u_EnableShadows == 1) {
+        shadow = ShadowCalculation(v_FragPosLightSpace);
+    }
 
-    vec4 final_color = vec4(ambient + diffuse + specular, 1.0);
+    vec4 final_color = vec4(ambient + (1.0 - shadow) * (diffuse + specular), 1.0);
     if (u_UseGammaCorrection == 1) {
         final_color.rgb = pow(final_color.rgb, vec3(1.0 / 2.2));
     }

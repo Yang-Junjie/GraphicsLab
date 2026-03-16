@@ -20,6 +20,8 @@ void main()
     v_FragPos = world_pos.xyz;
     v_Normal = mat3(transpose(inverse(u_model))) * a_Normal;
     v_TexCoord = a_TexCoord;
+
+    // 将世界坐标系下的位置转换到光源空间
     v_FragPosLightSpace = u_LightSpaceMatrix * world_pos;
 
     gl_Position = u_projection * u_view * world_pos;
