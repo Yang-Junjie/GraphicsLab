@@ -18,6 +18,7 @@ uniform float u_SpecularStrength;
 uniform int u_BlinnPhong; // 0 = Phong, 1 = Blinn-Phong
 uniform int u_UseGammaCorrection;
 uniform int u_EnableShadows;
+uniform int u_PCFregionSize;
 
 float ShadowCalculation(vec4 fragPosLightSpace)
 {
@@ -39,7 +40,19 @@ float ShadowCalculation(vec4 fragPosLightSpace)
 
     // 计算阴影偏移，防止阴影 acne
     float bias =  max(0.05 * (1.0 - dot(normalize(v_Normal), normalize(u_LightPos - v_FragPos))), 0.005);
-    float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(u_ShadowMap, 0);
+    for(int x = -u_PCFregionSize/2; x <= u_PCFregionSize/2; ++x)
+    {
+        for(int y = -u_PCFregionSize/2; y <= u_PCFregionSize/2; ++y)
+        {
+            float pcfDepth = texture(u_ShadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
+            // shadow test
+            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;        
+        }    
+    }
+    shadow /= u_PCFregionSize * u_PCFregionSize; // 平均阴影值
 
     return shadow;
 }

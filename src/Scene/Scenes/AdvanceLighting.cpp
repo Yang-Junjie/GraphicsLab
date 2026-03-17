@@ -345,6 +345,10 @@ void AdvanceLighting::OnRender(float width, float height)
     glUniform1i(shader_->Uniform("u_BlinnPhong"), use_blinn_phong_ ? 1 : 0);
     glUniform1i(shader_->Uniform("u_UseGammaCorrection"), selected_gamma_correction_ == 2 ? 1 : 0);
     glUniform1i(shader_->Uniform("u_EnableShadows"), enable_shadows_ ? 1 : 0);
+    glUniform1i(shader_->Uniform("u_PCFregionSize"),
+                pcf_region_size_ % 2 == 0
+                    ? pcf_region_size_
+                    : pcf_region_size_ + 1); // Ensure odd for symmetric sampling
 
     glBindTextureUnit(0, floor_texture_);
     glUniform1i(shader_->Uniform("u_FloorTexture"), 0);
@@ -395,6 +399,11 @@ void AdvanceLighting::OnRenderUI()
 
     ImGui::Text("Shadow Mapping");
     ImGui::Checkbox("Enable Shadows", &enable_shadows_);
+    if (ImGui::SliderInt("PCF Region Size", &pcf_region_size_, 1, 11)) {
+        if (pcf_region_size_ % 2 == 0) {
+            pcf_region_size_ += 1;
+        }
+    }
     ImGui::Separator();
 
     ImGui::Text("Lighting");

@@ -66,6 +66,7 @@ private:
 
     // Shadow mapping parameters
     bool enable_shadows_ = true;
+    int pcf_region_size_ = 3; // PCF kernel size (must be odd)
 
     // Input state
     std::unordered_set<int> keys_down_;
