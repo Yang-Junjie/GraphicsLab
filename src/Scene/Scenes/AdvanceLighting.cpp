@@ -350,6 +350,11 @@ void AdvanceLighting::OnRender(float width, float height)
                     ? pcf_region_size_
                     : pcf_region_size_ + 1); // Ensure odd for symmetric sampling
 
+    // HDR Tone Mapping uniforms
+    glUniform1i(shader_->Uniform("u_EnableHDR"), enable_hdr_ ? 1 : 0);
+    glUniform1f(shader_->Uniform("u_Exposure"), exposure_);
+    glUniform1i(shader_->Uniform("u_ToneMappingMode"), tone_mapping_mode_);
+
     glBindTextureUnit(0, floor_texture_);
     glUniform1i(shader_->Uniform("u_FloorTexture"), 0);
 
@@ -402,6 +407,17 @@ void AdvanceLighting::OnRenderUI()
     if (ImGui::SliderInt("PCF Region Size", &pcf_region_size_, 1, 11)) {
         if (pcf_region_size_ % 2 == 0) {
             pcf_region_size_ += 1;
+        }
+    }
+    ImGui::Separator();
+
+    ImGui::Text("HDR Tone Mapping");
+    ImGui::Checkbox("Enable HDR", &enable_hdr_);
+    if (enable_hdr_) {
+        const char* modes[] = {"Reinhard", "Exposure"};
+        ImGui::Combo("Tone Mapping", &tone_mapping_mode_, modes, 2);
+        if (tone_mapping_mode_ == 1) {
+            ImGui::SliderFloat("Exposure", &exposure_, 0.1f, 10.0f, "%.2f");
         }
     }
     ImGui::Separator();

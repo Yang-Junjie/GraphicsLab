@@ -23,7 +23,7 @@ AppLayer::AppLayer()
 void AppLayer::OnAttach()
 {
     renderer::Renderer2D::Init("shaders");
-    fbo_.Create(viewport_w_, viewport_h_);
+    fbo_.Create(viewport_w_, viewport_h_, GL_RGBA16F);
 
     jobs_ = std::make_unique<job::JobSystem>();
 

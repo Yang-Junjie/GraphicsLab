@@ -68,6 +68,11 @@ private:
     bool enable_shadows_ = true;
     int pcf_region_size_ = 3; // PCF kernel size (must be odd)
 
+    // HDR Tone Mapping
+    bool enable_hdr_ = false;
+    float exposure_ = 1.0f;
+    int tone_mapping_mode_ = 0; // 0 = Reinhard, 1 = Exposure
+
     // Input state
     std::unordered_set<int> keys_down_;
     bool right_mouse_down_ = false;

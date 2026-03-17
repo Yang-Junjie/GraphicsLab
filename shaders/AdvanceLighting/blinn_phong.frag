@@ -20,6 +20,11 @@ uniform int u_UseGammaCorrection;
 uniform int u_EnableShadows;
 uniform int u_PCFregionSize;
 
+// HDR Tone Mapping
+uniform int u_EnableHDR;
+uniform float u_Exposure;
+uniform int u_ToneMappingMode; // 0 = Reinhard, 1 = Exposure
+
 float ShadowCalculation(vec4 fragPosLightSpace)
 {
     // 将片段位置从齐次裁剪空间转换到纹理坐标空间
@@ -91,6 +96,20 @@ void main()
     }
 
     vec4 final_color = vec4(ambient + (1.0 - shadow) * (diffuse + specular), 1.0);
+
+    // HDR Tone Mapping
+    if (u_EnableHDR == 1) {
+        vec3 hdr_color = final_color.rgb;
+        if (u_ToneMappingMode == 0) {
+            // Reinhard tone mapping
+            final_color.rgb = hdr_color / (hdr_color + vec3(1.0));
+        } else {
+            // Exposure tone mapping
+            final_color.rgb = vec3(1.0) - exp(-hdr_color * u_Exposure);
+        }
+    }
+
+    // Gamma correction (applied after tone mapping)
     if (u_UseGammaCorrection == 1) {
         final_color.rgb = pow(final_color.rgb, vec3(1.0 / 2.2));
     }

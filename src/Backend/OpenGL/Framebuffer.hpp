@@ -13,7 +13,7 @@ public:
     Framebuffer(const Framebuffer&) = delete;
     Framebuffer& operator=(const Framebuffer&) = delete;
 
-    void Create(int width, int height);
+    void Create(int width, int height, GLuint internal_format = GL_RGBA8);
     void Resize(int width, int height);
     void Bind();
     void Unbind();
@@ -28,6 +28,7 @@ private:
     GLuint fbo_ = 0;
     GLuint color_ = 0;
     GLuint depth_rbo_ = 0;
+    GLuint internal_format_ = GL_RGBA8;
     int width_ = 0, height_ = 0;
     GLint prev_viewport_[4] = {};
 };
