@@ -1,6 +1,6 @@
 #include "AppLayer.hpp"
 #include "Renderer/Renderer2D.hpp"
-#include "Scene/Scenes/AdvanceLighting.hpp"
+#include "Scene/Scenes/AdvanceLighting/AdvanceLighting.hpp"
 #include "Scene/Scenes/BaseLighting.hpp"
 #include "Scene/Scenes/BezierCurveScene.hpp"
 #include "Scene/Scenes/BezierSurfaceScene.hpp"

@@ -5,7 +5,8 @@ in vec3 v_Normal;
 in vec2 v_TexCoord;
 in vec4 v_FragPosLightSpace;
 
-out vec4 FragColor;
+layout(location = 0) out vec4 FragColor;
+layout(location = 1) out vec4 BrightColor;
 
 uniform sampler2D u_FloorTexture;
 uniform sampler2D u_ShadowMap;
@@ -20,10 +21,8 @@ uniform int u_UseGammaCorrection;
 uniform int u_EnableShadows;
 uniform int u_PCFregionSize;
 
-// HDR Tone Mapping
-uniform int u_EnableHDR;
-uniform float u_Exposure;
-uniform int u_ToneMappingMode; // 0 = Reinhard, 1 = Exposure
+// Bloom
+uniform float u_BloomThreshold;
 
 float ShadowCalculation(vec4 fragPosLightSpace)
 {
@@ -95,23 +94,25 @@ void main()
         shadow = ShadowCalculation(v_FragPosLightSpace);
     }
 
-    vec4 final_color = vec4(ambient + (1.0 - shadow) * (diffuse + specular), 1.0);
+    // LearnOpenGL Bloom/HDR workflow:
+    // - Output linear HDR color to an FP framebuffer (no tone mapping / no gamma here)
+    // - Extract bright fragments based on HDR luminance for blur pass
+    vec3 hdr_color = ambient + (1.0 - shadow) * (diffuse + specular);
 
-    // HDR Tone Mapping
-    if (u_EnableHDR == 1) {
-        vec3 hdr_color = final_color.rgb;
-        if (u_ToneMappingMode == 0) {
-            // Reinhard tone mapping
-            final_color.rgb = hdr_color / (hdr_color + vec3(1.0));
-        } else {
-            // Exposure tone mapping
-            final_color.rgb = vec3(1.0) - exp(-hdr_color * u_Exposure);
-        }
-    }
-
-    // Gamma correction (applied after tone mapping)
+    vec3 out_color = hdr_color;
+    // If rendering directly into the default framebuffer, optionally apply manual gamma correction here.
+    // When using the HDR/bloom post-process path, gamma is handled in the composite shader.
     if (u_UseGammaCorrection == 1) {
-        final_color.rgb = pow(final_color.rgb, vec3(1.0 / 2.2));
+        out_color = pow(out_color, vec3(1.0 / 2.2));
     }
-    FragColor = final_color;
+
+    FragColor = vec4(out_color, 1.0);
+
+    // Bloom: extract bright fragments based on HDR luminance (not tone-mapped).
+    float brightness = dot(hdr_color, vec3(0.2126, 0.7152, 0.0722));
+    if (brightness > u_BloomThreshold) {
+        BrightColor = vec4(hdr_color, 1.0);
+    } else {
+        BrightColor = vec4(0.0, 0.0, 0.0, 1.0);
+    }
 }
