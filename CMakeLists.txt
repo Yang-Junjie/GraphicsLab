@@ -7,9 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(BIN_DIR ${CMAKE_SOURCE_DIR}/bin CACHE PATH "Output directory for binaries")
 
-add_subdirectory(thrid_party/Flux)
-add_subdirectory(thrid_party/simdjson)
-add_subdirectory(thrid_party/fastgltf)
+add_subdirectory(third_party/Flux)
+add_subdirectory(third_party/simdjson)
+add_subdirectory(third_party/fastgltf)
 
 add_executable(CGLab
     src/App.cpp
@@ -33,7 +33,7 @@ add_executable(CGLab
     src/Scene/Scenes/ModelScene.cpp
     src/Scene/Scenes/BezierCurveScene.cpp
     src/Scene/Scenes/BezierSurfaceScene.cpp
-    thrid_party/stb/stb_image.cpp
+    third_party/stb/stb_image.cpp
 )
 
 set_target_properties(CGLab PROPERTIES
@@ -42,7 +42,7 @@ set_target_properties(CGLab PROPERTIES
 
 target_include_directories(CGLab PRIVATE
     ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/thrid_party/stb
+    ${CMAKE_SOURCE_DIR}/third_party/stb
 )
 target_link_libraries(CGLab PRIVATE
     FluxCore

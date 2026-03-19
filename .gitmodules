@@ -1,9 +1,9 @@
-[submodule "thrid_party/Flux"]
-	path = thrid_party/Flux
+[submodule "third_party/Flux"]
+	path = third_party/Flux
 	url = https://github.com/Yang-Junjie/Flux.git
-[submodule "thrid_party/fastgltf"]
-	path = thrid_party/fastgltf
+[submodule "third_party/fastgltf"]
+	path = third_party/fastgltf
 	url = https://github.com/spnda/fastgltf.git
-[submodule "thrid_party/simdjson"]
-	path = thrid_party/simdjson
+[submodule "third_party/simdjson"]
+	path = third_party/simdjson
 	url = https://github.com/simdjson/simdjson.git

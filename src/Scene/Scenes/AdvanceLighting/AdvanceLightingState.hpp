@@ -15,7 +15,8 @@ class Event;
 }
 
 struct AdvanceLightingRenderResources {
-    std::unique_ptr<gl::Shader> shader;
+    std::unique_ptr<gl::Shader> geometry_shader;
+    std::unique_ptr<gl::Shader> lighting_shader;
     std::unique_ptr<gl::Shader> lamp_shader;
     std::unique_ptr<gl::Shader> depth_shader;
     std::unique_ptr<gl::Shader> bloom_blur_shader;
@@ -35,6 +36,14 @@ struct AdvanceLightingRenderResources {
     GLuint depth_map_fbo = 0;
     GLuint depth_map_texture = 0;
 
+    GLuint g_buffer_fbo = 0;
+    GLuint g_position_texture = 0;
+    GLuint g_normal_texture = 0;
+    GLuint g_albedo_spec_texture = 0;
+    GLuint g_depth_rbo = 0;
+    int g_buffer_width = 0;
+    int g_buffer_height = 0;
+
     GLuint bloom_fbo = 0;
     std::array<GLuint, 2> bloom_color_textures = {};
     GLuint bloom_rbo = 0;
@@ -44,14 +53,23 @@ struct AdvanceLightingRenderResources {
     int bloom_fbo_height = 0;
 };
 
+struct AdvanceLightingPointLight {
+    glm::vec3 position = glm::vec3(0.0f);
+    glm::vec3 color = glm::vec3(1.0f);
+    float intensity = 1.0f;
+};
+
 struct AdvanceLightingLightingSettings {
+    static constexpr int kMaxLights = 8;
+
+    AdvanceLightingLightingSettings();
+
     bool use_blinn_phong = true;
     float shininess = 64.0f;
     float ambient_strength = 0.08f;
     float specular_strength = 0.2f;
-    glm::vec3 light_pos = glm::vec3(-1.5f, 3.8f, 2.0f);
-    glm::vec3 light_color = glm::vec3(1.0f, 0.96f, 0.90f);
-    float light_intensity = 2.5f;
+    int active_light_count = 4;
+    std::array<AdvanceLightingPointLight, kMaxLights> lights = {};
 };
 
 struct AdvanceLightingShadowSettings {
@@ -90,6 +108,10 @@ struct AdvanceLightingCameraState {
     float mouse_sensitivity = 0.1f;
 };
 
+struct AdvanceLightingDebugState {
+    int selected_gbuffer_preview = 0;
+};
+
 class AdvanceLightingState {
 public:
     void OnEnter();
@@ -104,18 +126,27 @@ private:
     void CreateGeometry();
     void CreateShadowMap();
     void DestroyShadowMap();
+    void CreateGBuffer(int width, int height);
+    void DestroyGBuffer();
     void SyncCamera(float width, float height);
+    void EnsureGBuffer(int width, int height);
     void EnsureBloomBuffers(int width, int height, bool use_hdr_buffer);
 
     glm::mat4 BuildLightSpaceMatrix() const;
     void RenderShadowPass(const glm::mat4& light_space_matrix);
+    void RenderGeometryPass(int width,
+                            int height,
+                            const glm::mat4& view,
+                            const glm::mat4& projection);
     void RenderLightingPass(bool use_hdr_buffer,
                             const std::array<GLint, 4>& viewport,
                             GLint target_framebuffer,
-                            const glm::mat4& view,
-                            const glm::mat4& projection,
                             const glm::mat4& light_space_matrix);
-    void RenderLightCube(const glm::mat4& view, const glm::mat4& projection);
+    void BlitGBufferDepth(bool use_hdr_buffer,
+                          const std::array<GLint, 4>& viewport,
+                          GLint target_framebuffer);
+    void RenderLightCube(
+        bool use_hdr_buffer, const glm::mat4& view, const glm::mat4& projection);
     void RenderPostProcess(const std::array<GLint, 4>& viewport, GLint target_framebuffer);
     void RenderScene(gl::Shader& shader);
     void RenderQuad();
@@ -137,4 +168,5 @@ private:
     AdvanceLightingPostProcessSettings post_process_;
     AdvanceLightingInputState input_;
     AdvanceLightingCameraState camera_;
+    AdvanceLightingDebugState debug_;
 };

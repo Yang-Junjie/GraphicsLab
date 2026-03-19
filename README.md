@@ -56,7 +56,7 @@
 ├─ shaders/            GLSL shader
 ├─ res/                纹理、模型等运行时资源
 ├─ docs/               设计说明与实现笔记
-└─ thrid_party/        第三方依赖与子模块
+└─ third_party/        第三方依赖与子模块
 ```
 
 ## 构建
@@ -72,7 +72,7 @@
 如果是首次克隆，记得带上子模块：
 
 ```bash
-git clone --recurse-submodules <your-repo-url>
+git clone --recurse-submodules https://github.com/Yang-Junjie/GraphicsLab.git
 cd GraphicsLab
 ```
 
@@ -140,19 +140,3 @@ cmake --build build --config Release
 - `Scene`：组织各实验主题的生命周期、更新、渲染与 UI
 - `Model`：负责 glTF 模型、子网格和材质绑定
 - `Backend/OpenGL`：封装底层 GL 对象与 shader 编译
-
-## 文档
-
-仓库内还包含一些单独的设计说明：
-
-- `docs/JobSystem.md`
-- `docs/Camera_System.md`
-- `docs/Camera_Implementation_Summary.md`
-- `docs/StressTestOptimization.md`
-
-另外 `docs/FluidSim2D/` 和 `docs/Experimental/` 下保留了一些尚未正式接入主程序的实验代码与 shader 草稿。
-
-## 备注
-
-- 仓库目录中第三方文件夹名目前为 `thrid_party/`，这是现有路径命名，不是 README 的笔误
-- 运行时依赖资源相对路径，建议从构建输出目录直接启动程序，不要手动拆散 `shaders/` 和 `res/`

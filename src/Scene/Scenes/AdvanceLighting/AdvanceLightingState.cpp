@@ -1,13 +1,13 @@
 #include "Scene/Scenes/AdvanceLighting/AdvanceLightingState.hpp"
 
+#include <algorithm>
 #include <Event.hpp>
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
 #include <stb_image.h>
-
-#include <algorithm>
+#include <string>
 
 namespace {
 
@@ -24,12 +24,31 @@ FramebufferState CaptureFramebufferState()
     return state;
 }
 
-glm::vec3 HdrLightColor(const AdvanceLightingLightingSettings& lighting)
+glm::vec3 HdrLightColor(const AdvanceLightingPointLight& light)
 {
-    return lighting.light_color * lighting.light_intensity;
+    return light.color * light.intensity;
+}
+
+const AdvanceLightingPointLight& PrimaryLight(const AdvanceLightingLightingSettings& lighting)
+{
+    return lighting.lights[0];
 }
 
 } // namespace
+
+AdvanceLightingLightingSettings::AdvanceLightingLightingSettings()
+{
+    lights = {{
+        {glm::vec3(-1.5f, 3.8f, 2.0f), glm::vec3(1.0f, 0.96f, 0.90f), 3.0f},
+        {glm::vec3(2.5f, 1.4f, 1.0f), glm::vec3(0.25f, 0.55f, 1.0f), 3.0f},
+        {glm::vec3(-2.8f, 1.2f, -1.8f), glm::vec3(1.0f, 0.35f, 0.25f), 3.0f},
+        {glm::vec3(0.0f, 2.7f, -3.0f), glm::vec3(0.35f, 1.0f, 0.45f), 3.0f},
+        {glm::vec3(4.0f, 0.8f, -4.0f), glm::vec3(1.0f, 0.75f, 0.20f), 3.0f},
+        {glm::vec3(-4.0f, 0.8f, 4.0f), glm::vec3(1.0f, 0.20f, 0.85f), 3.0f},
+        {glm::vec3(3.0f, 2.8f, -1.0f), glm::vec3(0.40f, 1.0f, 0.95f), 3.0f},
+        {glm::vec3(-1.0f, 1.8f, 3.5f), glm::vec3(1.0f, 0.55f, 0.15f), 3.0f},
+    }};
+}
 
 void AdvanceLightingState::OnEnter()
 {
@@ -51,6 +70,7 @@ void AdvanceLightingState::OnExit()
     glDisable(GL_FRAMEBUFFER_SRGB);
 
     DestroyBloomFBOs();
+    DestroyGBuffer();
     DestroyShadowMap();
 
     if (resources_.floor_texture) {
@@ -71,7 +91,8 @@ void AdvanceLightingState::OnExit()
     resources_.bloom_blur_shader.reset();
     resources_.depth_shader.reset();
     resources_.lamp_shader.reset();
-    resources_.shader.reset();
+    resources_.lighting_shader.reset();
+    resources_.geometry_shader.reset();
 
     input_.keys_down.clear();
     input_.right_mouse_down = false;
@@ -107,8 +128,9 @@ void AdvanceLightingState::OnUpdate(float dt)
 
 void AdvanceLightingState::OnRender(float width, float height)
 {
-    if (!resources_.shader || !resources_.lamp_shader || !resources_.depth_shader ||
-        !resources_.floor_vao || !resources_.scene_cube_vao || !resources_.cube_vao) {
+    if (!resources_.geometry_shader || !resources_.lighting_shader || !resources_.lamp_shader ||
+        !resources_.depth_shader || !resources_.floor_vao || !resources_.scene_cube_vao ||
+        !resources_.cube_vao) {
         return;
     }
 
@@ -117,23 +139,24 @@ void AdvanceLightingState::OnRender(float width, float height)
     const bool use_hdr_buffer = post_process_.enable_hdr || post_process_.enable_bloom;
     const int viewport_width = std::max(static_cast<int>(width), 0);
     const int viewport_height = std::max(static_cast<int>(height), 0);
+    if (viewport_width <= 0 || viewport_height <= 0) {
+        return;
+    }
+
+    EnsureGBuffer(viewport_width, viewport_height);
     EnsureBloomBuffers(viewport_width, viewport_height, use_hdr_buffer);
 
     const FramebufferState framebuffers = CaptureFramebufferState();
     const glm::mat4 light_space_matrix = BuildLightSpaceMatrix();
-
-    RenderShadowPass(light_space_matrix);
-
     const glm::mat4 view = camera_.camera.GetViewMatrix();
     const glm::mat4 projection = camera_.camera.GetProjectionMatrix();
 
-    RenderLightingPass(use_hdr_buffer,
-                       framebuffers.viewport,
-                       framebuffers.framebuffer,
-                       view,
-                       projection,
-                       light_space_matrix);
-    RenderLightCube(view, projection);
+    RenderShadowPass(light_space_matrix);
+    RenderGeometryPass(viewport_width, viewport_height, view, projection);
+    RenderLightingPass(
+        use_hdr_buffer, framebuffers.viewport, framebuffers.framebuffer, light_space_matrix);
+    BlitGBufferDepth(use_hdr_buffer, framebuffers.viewport, framebuffers.framebuffer);
+    RenderLightCube(use_hdr_buffer, view, projection);
 
     if (use_hdr_buffer) {
         RenderPostProcess(framebuffers.viewport, framebuffers.framebuffer);
@@ -142,7 +165,44 @@ void AdvanceLightingState::OnRender(float width, float height)
 
 void AdvanceLightingState::OnRenderUI()
 {
-    ImGui::Text("Advanced Lighting: Shadow Mapping");
+    lighting_.active_light_count =
+        std::clamp(lighting_.active_light_count, 1, AdvanceLightingLightingSettings::kMaxLights);
+
+    auto render_preview = [this](const char* hint) {
+        GLuint preview_texture = 0;
+        switch (debug_.selected_gbuffer_preview) {
+            case 0:
+                preview_texture = resources_.g_position_texture;
+                break;
+            case 1:
+                preview_texture = resources_.g_normal_texture;
+                break;
+            case 2:
+                preview_texture = resources_.g_albedo_spec_texture;
+                break;
+            default:
+                break;
+        }
+
+        if (!preview_texture || resources_.g_buffer_width <= 0 || resources_.g_buffer_height <= 0) {
+            ImGui::TextDisabled("G-buffer unavailable before first render.");
+            return;
+        }
+
+        const float available_width = std::max(ImGui::GetContentRegionAvail().x, 1.0f);
+        const float aspect = static_cast<float>(resources_.g_buffer_height) /
+                             static_cast<float>(resources_.g_buffer_width);
+        const float preview_height = std::min(available_width * aspect, 220.0f);
+        const float preview_width = preview_height / std::max(aspect, 0.001f);
+
+        ImGui::Image(static_cast<ImTextureID>(preview_texture),
+                     ImVec2(preview_width, preview_height),
+                     ImVec2(0, 1),
+                     ImVec2(1, 0));
+        ImGui::TextWrapped("%s", hint);
+    };
+
+    ImGui::Text("Advanced Lighting: Deferred Rendering + Shadow Mapping");
     ImGui::Separator();
 
     ImGui::Checkbox("Blinn-Phong (B key toggle)", &lighting_.use_blinn_phong);
@@ -192,9 +252,24 @@ void AdvanceLightingState::OnRenderUI()
     ImGui::SliderFloat("Shininess", &lighting_.shininess, 2.0f, 256.0f, "%.1f");
     ImGui::SliderFloat("Ambient Strength", &lighting_.ambient_strength, 0.0f, 1.0f, "%.2f");
     ImGui::SliderFloat("Specular Strength", &lighting_.specular_strength, 0.0f, 2.0f, "%.2f");
-    ImGui::DragFloat3("Light Position", &lighting_.light_pos.x, 0.05f);
-    ImGui::ColorEdit3("Light Color", &lighting_.light_color.x);
-    ImGui::SliderFloat("Light Intensity", &lighting_.light_intensity, 0.0f, 50.0f, "%.1f");
+    ImGui::SliderInt("Active Lights",
+                     &lighting_.active_light_count,
+                     1,
+                     AdvanceLightingLightingSettings::kMaxLights);
+    ImGui::TextDisabled("Light 0 is the shadow-casting light.");
+    for (int i = 0; i < lighting_.active_light_count; ++i) {
+        auto& light = lighting_.lights[i];
+        std::string label = (i == 0) ? "Light 0 (Shadow)" : ("Light " + std::to_string(i));
+        if (ImGui::TreeNode(label.c_str())) {
+            std::string position_label = "Position##light_" + std::to_string(i);
+            std::string color_label = "Color##light_" + std::to_string(i);
+            std::string intensity_label = "Intensity##light_" + std::to_string(i);
+            ImGui::DragFloat3(position_label.c_str(), &light.position.x, 0.05f);
+            ImGui::ColorEdit3(color_label.c_str(), &light.color.x);
+            ImGui::SliderFloat(intensity_label.c_str(), &light.intensity, 0.0f, 20.0f, "%.1f");
+            ImGui::TreePop();
+        }
+    }
 
     ImGui::Separator();
     ImGui::Text("Camera");
@@ -205,7 +280,29 @@ void AdvanceLightingState::OnRenderUI()
     ImGui::SliderFloat("Move Speed", &camera_.move_speed, 1.0f, 20.0f);
 
     ImGui::Separator();
+    ImGui::Text("G-Buffer Preview");
+    const char* gbuffer_previews[] = {"Position", "Normal", "Albedo + Spec"};
+    ImGui::Combo("Attachment", &debug_.selected_gbuffer_preview, gbuffer_previews, 3);
+    switch (debug_.selected_gbuffer_preview) {
+        case 0:
+            render_preview(
+                "Position buffer contains world-space coordinates, so this preview is unclamped.");
+            break;
+        case 1:
+            render_preview(
+                "Normal buffer is encoded to 0..1 for preview and decoded back in lighting pass.");
+            break;
+        case 2:
+            render_preview(
+                "RGB stores albedo and A stores the specular mask / geometry occupancy.");
+            break;
+        default:
+            break;
+    }
+
+    ImGui::Separator();
     ImGui::TextWrapped("B: Toggle Blinn-Phong/Phong\n"
+                       "Deferred: Geometry Pass + Lighting Pass\n"
                        "WASD/Arrow: Move, Space/Shift: Up/Down\n"
                        "Scroll: FOV, RMB Drag: Look");
 }
@@ -223,8 +320,9 @@ void AdvanceLightingState::OnEvent(flux::Event& event)
     dispatcher.Dispatch<flux::MouseButtonPressedEvent>([this](flux::MouseButtonPressedEvent& e) {
         return OnMouseButtonPressed(e.GetMouseButton());
     });
-    dispatcher.Dispatch<flux::MouseButtonReleasedEvent>(
-        [this](flux::MouseButtonReleasedEvent& e) { return OnMouseButtonReleased(e.GetMouseButton()); });
+    dispatcher.Dispatch<flux::MouseButtonReleasedEvent>([this](flux::MouseButtonReleasedEvent& e) {
+        return OnMouseButtonReleased(e.GetMouseButton());
+    });
     dispatcher.Dispatch<flux::MouseMovedEvent>([this](flux::MouseMovedEvent& e) {
         return OnMouseMoved(e.GetX(), e.GetY());
     });
@@ -235,9 +333,13 @@ void AdvanceLightingState::OnEvent(flux::Event& event)
 
 void AdvanceLightingState::CreateShaders()
 {
-    resources_.shader = std::make_unique<gl::Shader>();
-    resources_.shader->CompileFromFile("shaders/AdvanceLighting/blinn_phong.vert",
-                                       "shaders/AdvanceLighting/blinn_phong.frag");
+    resources_.geometry_shader = std::make_unique<gl::Shader>();
+    resources_.geometry_shader->CompileFromFile("shaders/AdvanceLighting/deferred_geometry.vert",
+                                                "shaders/AdvanceLighting/deferred_geometry.frag");
+
+    resources_.lighting_shader = std::make_unique<gl::Shader>();
+    resources_.lighting_shader->CompileFromFile("shaders/AdvanceLighting/bloom_quad.vert",
+                                                "shaders/AdvanceLighting/deferred_lighting.frag");
 
     resources_.lamp_shader = std::make_unique<gl::Shader>();
     resources_.lamp_shader->CompileFromFile("shaders/BaseLighting/light.vert",
@@ -252,8 +354,8 @@ void AdvanceLightingState::CreateShaders()
                                                   "shaders/AdvanceLighting/bloom_blur.frag");
 
     resources_.bloom_composite_shader = std::make_unique<gl::Shader>();
-    resources_.bloom_composite_shader->CompileFromFile("shaders/AdvanceLighting/bloom_quad.vert",
-                                                       "shaders/AdvanceLighting/bloom_composite.frag");
+    resources_.bloom_composite_shader->CompileFromFile(
+        "shaders/AdvanceLighting/bloom_quad.vert", "shaders/AdvanceLighting/bloom_composite.frag");
 }
 
 void AdvanceLightingState::CreateGeometry()
@@ -334,36 +436,43 @@ void AdvanceLightingState::CreateGeometry()
     resources_.floor_vao = std::make_unique<gl::VertexArray>();
     resources_.floor_vbo = std::make_unique<gl::Buffer>();
     resources_.floor_vbo->Storage(sizeof(floor_vertices), floor_vertices, GL_STATIC_DRAW);
-    glVertexArrayVertexBuffer(resources_.floor_vao->Id(), 0, resources_.floor_vbo->Id(), 0, 8 * sizeof(float));
+    glVertexArrayVertexBuffer(
+        resources_.floor_vao->Id(), 0, resources_.floor_vbo->Id(), 0, 8 * sizeof(float));
     glEnableVertexArrayAttrib(resources_.floor_vao->Id(), 0);
     glVertexArrayAttribFormat(resources_.floor_vao->Id(), 0, 3, GL_FLOAT, GL_FALSE, 0);
     glVertexArrayAttribBinding(resources_.floor_vao->Id(), 0, 0);
     glEnableVertexArrayAttrib(resources_.floor_vao->Id(), 1);
-    glVertexArrayAttribFormat(resources_.floor_vao->Id(), 1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float));
+    glVertexArrayAttribFormat(
+        resources_.floor_vao->Id(), 1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float));
     glVertexArrayAttribBinding(resources_.floor_vao->Id(), 1, 0);
     glEnableVertexArrayAttrib(resources_.floor_vao->Id(), 2);
-    glVertexArrayAttribFormat(resources_.floor_vao->Id(), 2, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float));
+    glVertexArrayAttribFormat(
+        resources_.floor_vao->Id(), 2, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float));
     glVertexArrayAttribBinding(resources_.floor_vao->Id(), 2, 0);
 
     resources_.scene_cube_vao = std::make_unique<gl::VertexArray>();
     resources_.scene_cube_vbo = std::make_unique<gl::Buffer>();
-    resources_.scene_cube_vbo->Storage(sizeof(scene_cube_vertices), scene_cube_vertices, GL_STATIC_DRAW);
+    resources_.scene_cube_vbo->Storage(
+        sizeof(scene_cube_vertices), scene_cube_vertices, GL_STATIC_DRAW);
     glVertexArrayVertexBuffer(
         resources_.scene_cube_vao->Id(), 0, resources_.scene_cube_vbo->Id(), 0, 8 * sizeof(float));
     glEnableVertexArrayAttrib(resources_.scene_cube_vao->Id(), 0);
     glVertexArrayAttribFormat(resources_.scene_cube_vao->Id(), 0, 3, GL_FLOAT, GL_FALSE, 0);
     glVertexArrayAttribBinding(resources_.scene_cube_vao->Id(), 0, 0);
     glEnableVertexArrayAttrib(resources_.scene_cube_vao->Id(), 1);
-    glVertexArrayAttribFormat(resources_.scene_cube_vao->Id(), 1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float));
+    glVertexArrayAttribFormat(
+        resources_.scene_cube_vao->Id(), 1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float));
     glVertexArrayAttribBinding(resources_.scene_cube_vao->Id(), 1, 0);
     glEnableVertexArrayAttrib(resources_.scene_cube_vao->Id(), 2);
-    glVertexArrayAttribFormat(resources_.scene_cube_vao->Id(), 2, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float));
+    glVertexArrayAttribFormat(
+        resources_.scene_cube_vao->Id(), 2, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float));
     glVertexArrayAttribBinding(resources_.scene_cube_vao->Id(), 2, 0);
 
     resources_.cube_vao = std::make_unique<gl::VertexArray>();
     resources_.cube_vbo = std::make_unique<gl::Buffer>();
     resources_.cube_vbo->Storage(sizeof(lamp_vertices), lamp_vertices, GL_STATIC_DRAW);
-    glVertexArrayVertexBuffer(resources_.cube_vao->Id(), 0, resources_.cube_vbo->Id(), 0, 3 * sizeof(float));
+    glVertexArrayVertexBuffer(
+        resources_.cube_vao->Id(), 0, resources_.cube_vbo->Id(), 0, 3 * sizeof(float));
     glEnableVertexArrayAttrib(resources_.cube_vao->Id(), 0);
     glVertexArrayAttribFormat(resources_.cube_vao->Id(), 0, 3, GL_FLOAT, GL_FALSE, 0);
     glVertexArrayAttribBinding(resources_.cube_vao->Id(), 0, 0);
@@ -371,12 +480,14 @@ void AdvanceLightingState::CreateGeometry()
     resources_.quad_vao = std::make_unique<gl::VertexArray>();
     resources_.quad_vbo = std::make_unique<gl::Buffer>();
     resources_.quad_vbo->Storage(sizeof(quad_vertices), quad_vertices, GL_STATIC_DRAW);
-    glVertexArrayVertexBuffer(resources_.quad_vao->Id(), 0, resources_.quad_vbo->Id(), 0, 4 * sizeof(float));
+    glVertexArrayVertexBuffer(
+        resources_.quad_vao->Id(), 0, resources_.quad_vbo->Id(), 0, 4 * sizeof(float));
     glEnableVertexArrayAttrib(resources_.quad_vao->Id(), 0);
     glVertexArrayAttribFormat(resources_.quad_vao->Id(), 0, 2, GL_FLOAT, GL_FALSE, 0);
     glVertexArrayAttribBinding(resources_.quad_vao->Id(), 0, 0);
     glEnableVertexArrayAttrib(resources_.quad_vao->Id(), 1);
-    glVertexArrayAttribFormat(resources_.quad_vao->Id(), 1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float));
+    glVertexArrayAttribFormat(
+        resources_.quad_vao->Id(), 1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float));
     glVertexArrayAttribBinding(resources_.quad_vao->Id(), 1, 0);
 }
 
@@ -415,12 +526,95 @@ void AdvanceLightingState::DestroyShadowMap()
     }
 }
 
+void AdvanceLightingState::CreateGBuffer(int width, int height)
+{
+    resources_.g_buffer_width = width;
+    resources_.g_buffer_height = height;
+
+    glCreateFramebuffers(1, &resources_.g_buffer_fbo);
+
+    glCreateTextures(GL_TEXTURE_2D, 1, &resources_.g_position_texture);
+    glTextureStorage2D(resources_.g_position_texture, 1, GL_RGBA16F, width, height);
+    glTextureParameteri(resources_.g_position_texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTextureParameteri(resources_.g_position_texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTextureParameteri(resources_.g_position_texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(resources_.g_position_texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glNamedFramebufferTexture(
+        resources_.g_buffer_fbo, GL_COLOR_ATTACHMENT0, resources_.g_position_texture, 0);
+
+    glCreateTextures(GL_TEXTURE_2D, 1, &resources_.g_normal_texture);
+    glTextureStorage2D(resources_.g_normal_texture, 1, GL_RGBA16F, width, height);
+    glTextureParameteri(resources_.g_normal_texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTextureParameteri(resources_.g_normal_texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTextureParameteri(resources_.g_normal_texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(resources_.g_normal_texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glNamedFramebufferTexture(
+        resources_.g_buffer_fbo, GL_COLOR_ATTACHMENT1, resources_.g_normal_texture, 0);
+
+    glCreateTextures(GL_TEXTURE_2D, 1, &resources_.g_albedo_spec_texture);
+    glTextureStorage2D(resources_.g_albedo_spec_texture, 1, GL_RGBA8, width, height);
+    glTextureParameteri(resources_.g_albedo_spec_texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTextureParameteri(resources_.g_albedo_spec_texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTextureParameteri(resources_.g_albedo_spec_texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(resources_.g_albedo_spec_texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glNamedFramebufferTexture(
+        resources_.g_buffer_fbo, GL_COLOR_ATTACHMENT2, resources_.g_albedo_spec_texture, 0);
+
+    glCreateRenderbuffers(1, &resources_.g_depth_rbo);
+    glNamedRenderbufferStorage(resources_.g_depth_rbo, GL_DEPTH_COMPONENT24, width, height);
+    glNamedFramebufferRenderbuffer(
+        resources_.g_buffer_fbo, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, resources_.g_depth_rbo);
+
+    GLenum attachments[3] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2};
+    glNamedFramebufferDrawBuffers(resources_.g_buffer_fbo, 3, attachments);
+}
+
+void AdvanceLightingState::DestroyGBuffer()
+{
+    if (resources_.g_depth_rbo) {
+        glDeleteRenderbuffers(1, &resources_.g_depth_rbo);
+        resources_.g_depth_rbo = 0;
+    }
+    if (resources_.g_albedo_spec_texture) {
+        glDeleteTextures(1, &resources_.g_albedo_spec_texture);
+        resources_.g_albedo_spec_texture = 0;
+    }
+    if (resources_.g_normal_texture) {
+        glDeleteTextures(1, &resources_.g_normal_texture);
+        resources_.g_normal_texture = 0;
+    }
+    if (resources_.g_position_texture) {
+        glDeleteTextures(1, &resources_.g_position_texture);
+        resources_.g_position_texture = 0;
+    }
+    if (resources_.g_buffer_fbo) {
+        glDeleteFramebuffers(1, &resources_.g_buffer_fbo);
+        resources_.g_buffer_fbo = 0;
+    }
+
+    resources_.g_buffer_width = 0;
+    resources_.g_buffer_height = 0;
+}
+
 void AdvanceLightingState::SyncCamera(float width, float height)
 {
     const float safe_height = std::max(height, 1.0f);
     camera_.camera.SetPosition(camera_.position);
     camera_.camera.SetRotation(camera_.pitch, camera_.yaw);
     camera_.camera.SetPerspective(camera_.fov, width / safe_height, 0.1f, 100.0f);
+}
+
+void AdvanceLightingState::EnsureGBuffer(int width, int height)
+{
+    if (width <= 0 || height <= 0) {
+        return;
+    }
+
+    if (!resources_.g_buffer_fbo || resources_.g_buffer_width != width ||
+        resources_.g_buffer_height != height) {
+        DestroyGBuffer();
+        CreateGBuffer(width, height);
+    }
 }
 
 void AdvanceLightingState::EnsureBloomBuffers(int width, int height, bool use_hdr_buffer)
@@ -447,11 +641,12 @@ glm::mat4 AdvanceLightingState::BuildLightSpaceMatrix() const
 {
     constexpr float near_plane = 1.0f;
     constexpr float far_plane = 7.5f;
+    const AdvanceLightingPointLight& light = PrimaryLight(lighting_);
 
     const glm::mat4 light_projection =
         glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
     const glm::mat4 light_view =
-        glm::lookAt(lighting_.light_pos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::lookAt(light.position, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
     return light_projection * light_view;
 }
@@ -472,13 +667,45 @@ void AdvanceLightingState::RenderShadowPass(const glm::mat4& light_space_matrix)
     resources_.depth_shader->Unbind();
 }
 
+void AdvanceLightingState::RenderGeometryPass(int width,
+                                              int height,
+                                              const glm::mat4& view,
+                                              const glm::mat4& projection)
+{
+    static constexpr GLfloat kClearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_FRAMEBUFFER_SRGB);
+    glBindFramebuffer(GL_FRAMEBUFFER, resources_.g_buffer_fbo);
+    glViewport(0, 0, width, height);
+    glClearBufferfv(GL_COLOR, 0, kClearColor);
+    glClearBufferfv(GL_COLOR, 1, kClearColor);
+    glClearBufferfv(GL_COLOR, 2, kClearColor);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    resources_.geometry_shader->Bind();
+    glUniformMatrix4fv(
+        resources_.geometry_shader->Uniform("u_view"), 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(resources_.geometry_shader->Uniform("u_projection"),
+                       1,
+                       GL_FALSE,
+                       glm::value_ptr(projection));
+
+    glBindTextureUnit(0, resources_.floor_texture);
+    glUniform1i(resources_.geometry_shader->Uniform("u_AlbedoTexture"), 0);
+
+    RenderScene(*resources_.geometry_shader);
+    resources_.geometry_shader->Unbind();
+}
+
 void AdvanceLightingState::RenderLightingPass(bool use_hdr_buffer,
                                               const std::array<GLint, 4>& viewport,
                                               GLint target_framebuffer,
-                                              const glm::mat4& view,
-                                              const glm::mat4& projection,
                                               const glm::mat4& light_space_matrix)
 {
+    const int active_light_count =
+        std::clamp(lighting_.active_light_count, 1, AdvanceLightingLightingSettings::kMaxLights);
+
     if (use_hdr_buffer && resources_.bloom_fbo) {
         glBindFramebuffer(GL_FRAMEBUFFER, resources_.bloom_fbo);
         glViewport(0, 0, resources_.bloom_fbo_width, resources_.bloom_fbo_height);
@@ -493,62 +720,124 @@ void AdvanceLightingState::RenderLightingPass(bool use_hdr_buffer,
         }
     }
 
+    glDisable(GL_DEPTH_TEST);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    resources_.shader->Bind();
-    glUniformMatrix4fv(resources_.shader->Uniform("u_view"), 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(
-        resources_.shader->Uniform("u_projection"), 1, GL_FALSE, glm::value_ptr(projection));
-    glUniformMatrix4fv(resources_.shader->Uniform("u_LightSpaceMatrix"),
+    resources_.lighting_shader->Bind();
+    glUniformMatrix4fv(resources_.lighting_shader->Uniform("u_LightSpaceMatrix"),
                        1,
                        GL_FALSE,
                        glm::value_ptr(light_space_matrix));
-
-    glUniform3fv(resources_.shader->Uniform("u_LightPos"), 1, glm::value_ptr(lighting_.light_pos));
-    glUniform3fv(resources_.shader->Uniform("u_ViewPos"), 1, glm::value_ptr(camera_.position));
-
-    const glm::vec3 hdr_light_color = HdrLightColor(lighting_);
-    glUniform3fv(resources_.shader->Uniform("u_LightColor"), 1, glm::value_ptr(hdr_light_color));
-    glUniform1f(resources_.shader->Uniform("u_Shininess"), lighting_.shininess);
-    glUniform1f(resources_.shader->Uniform("u_AmbientStrength"), lighting_.ambient_strength);
-    glUniform1f(resources_.shader->Uniform("u_SpecularStrength"), lighting_.specular_strength);
-    glUniform1i(resources_.shader->Uniform("u_BlinnPhong"), lighting_.use_blinn_phong ? 1 : 0);
-    glUniform1i(resources_.shader->Uniform("u_UseGammaCorrection"),
+    glUniform3fv(
+        resources_.lighting_shader->Uniform("u_ViewPos"), 1, glm::value_ptr(camera_.position));
+    glUniform1f(resources_.lighting_shader->Uniform("u_Shininess"), lighting_.shininess);
+    glUniform1f(resources_.lighting_shader->Uniform("u_AmbientStrength"),
+                lighting_.ambient_strength);
+    glUniform1f(resources_.lighting_shader->Uniform("u_SpecularStrength"),
+                lighting_.specular_strength);
+    glUniform1i(resources_.lighting_shader->Uniform("u_ActiveLightCount"), active_light_count);
+    glUniform1i(resources_.lighting_shader->Uniform("u_BlinnPhong"),
+                lighting_.use_blinn_phong ? 1 : 0);
+    glUniform1i(resources_.lighting_shader->Uniform("u_UseGammaCorrection"),
                 (!use_hdr_buffer && post_process_.selected_gamma_correction == 2) ? 1 : 0);
-    glUniform1i(resources_.shader->Uniform("u_EnableShadows"), shadow_.enable_shadows ? 1 : 0);
-    glUniform1i(resources_.shader->Uniform("u_PCFregionSize"), NormalizedPcfRegionSize());
-    glUniform1f(resources_.shader->Uniform("u_BloomThreshold"),
+    glUniform1i(resources_.lighting_shader->Uniform("u_EnableShadows"),
+                shadow_.enable_shadows ? 1 : 0);
+    glUniform1i(resources_.lighting_shader->Uniform("u_PCFregionSize"), NormalizedPcfRegionSize());
+    glUniform1f(resources_.lighting_shader->Uniform("u_BloomThreshold"),
                 post_process_.enable_bloom ? post_process_.bloom_threshold : 99999.0f);
 
-    glBindTextureUnit(0, resources_.floor_texture);
-    glUniform1i(resources_.shader->Uniform("u_FloorTexture"), 0);
+    for (int i = 0; i < active_light_count; ++i) {
+        const auto& light = lighting_.lights[i];
+        const std::string prefix = "u_Lights[" + std::to_string(i) + "].";
+        glUniform3fv(resources_.lighting_shader->Uniform((prefix + "position").c_str()),
+                     1,
+                     glm::value_ptr(light.position));
+        glUniform3fv(resources_.lighting_shader->Uniform((prefix + "color").c_str()),
+                     1,
+                     glm::value_ptr(light.color));
+        glUniform1f(resources_.lighting_shader->Uniform((prefix + "intensity").c_str()),
+                    light.intensity);
+    }
 
-    glBindTextureUnit(1, resources_.depth_map_texture);
-    glUniform1i(resources_.shader->Uniform("u_ShadowMap"), 1);
+    glBindTextureUnit(0, resources_.g_position_texture);
+    glUniform1i(resources_.lighting_shader->Uniform("u_GPosition"), 0);
+    glBindTextureUnit(1, resources_.g_normal_texture);
+    glUniform1i(resources_.lighting_shader->Uniform("u_GNormal"), 1);
+    glBindTextureUnit(2, resources_.g_albedo_spec_texture);
+    glUniform1i(resources_.lighting_shader->Uniform("u_GAlbedoSpec"), 2);
+    glBindTextureUnit(3, resources_.depth_map_texture);
+    glUniform1i(resources_.lighting_shader->Uniform("u_ShadowMap"), 3);
 
-    RenderScene(*resources_.shader);
-    resources_.shader->Unbind();
+    RenderQuad();
+    resources_.lighting_shader->Unbind();
 }
 
-void AdvanceLightingState::RenderLightCube(const glm::mat4& view, const glm::mat4& projection)
+void AdvanceLightingState::BlitGBufferDepth(bool use_hdr_buffer,
+                                            const std::array<GLint, 4>& viewport,
+                                            GLint target_framebuffer)
 {
+    GLuint draw_framebuffer = static_cast<GLuint>(target_framebuffer);
+    GLint dst_x = viewport[0];
+    GLint dst_y = viewport[1];
+    GLint dst_width = viewport[2];
+    GLint dst_height = viewport[3];
+
+    if (use_hdr_buffer && resources_.bloom_fbo) {
+        draw_framebuffer = resources_.bloom_fbo;
+        dst_x = 0;
+        dst_y = 0;
+        dst_width = resources_.bloom_fbo_width;
+        dst_height = resources_.bloom_fbo_height;
+    }
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, resources_.g_buffer_fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw_framebuffer);
+    glBlitFramebuffer(0,
+                      0,
+                      resources_.g_buffer_width,
+                      resources_.g_buffer_height,
+                      dst_x,
+                      dst_y,
+                      dst_x + dst_width,
+                      dst_y + dst_height,
+                      GL_DEPTH_BUFFER_BIT,
+                      GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, draw_framebuffer);
+    glViewport(dst_x, dst_y, dst_width, dst_height);
+}
+
+void AdvanceLightingState::RenderLightCube(bool use_hdr_buffer,
+                                           const glm::mat4& view,
+                                           const glm::mat4& projection)
+{
+    const int active_light_count =
+        std::clamp(lighting_.active_light_count, 1, AdvanceLightingLightingSettings::kMaxLights);
+
+    glEnable(GL_DEPTH_TEST);
     resources_.lamp_shader->Bind();
-    glUniformMatrix4fv(resources_.lamp_shader->Uniform("u_view"), 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(
+        resources_.lamp_shader->Uniform("u_view"), 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(
         resources_.lamp_shader->Uniform("u_projection"), 1, GL_FALSE, glm::value_ptr(projection));
-
-    glm::mat4 model(1.0f);
-    model = glm::translate(model, lighting_.light_pos);
-    model = glm::scale(model, glm::vec3(0.2f));
-
-    const glm::vec3 hdr_light_color = HdrLightColor(lighting_);
-    glUniformMatrix4fv(resources_.lamp_shader->Uniform("u_model"), 1, GL_FALSE, glm::value_ptr(model));
-    glUniform3fv(resources_.lamp_shader->Uniform("u_LightColor"), 1, glm::value_ptr(hdr_light_color));
-    glUniform1f(resources_.lamp_shader->Uniform("u_BloomThreshold"),
-                post_process_.enable_bloom ? post_process_.bloom_threshold : 99999.0f);
-
+    glUniform1i(resources_.lamp_shader->Uniform("u_UseGammaCorrection"),
+                (!use_hdr_buffer && post_process_.selected_gamma_correction == 2) ? 1 : 0);
     resources_.cube_vao->Bind();
-    glDrawArrays(GL_TRIANGLES, 0, 36);
+    for (int i = 0; i < active_light_count; ++i) {
+        const auto& light = lighting_.lights[i];
+        glm::mat4 model(1.0f);
+        model = glm::translate(model, light.position);
+        model = glm::scale(model, glm::vec3(i == 0 ? 0.22f : 0.16f));
+
+        const glm::vec3 hdr_light_color = HdrLightColor(light);
+        glUniformMatrix4fv(
+            resources_.lamp_shader->Uniform("u_model"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniform3fv(
+            resources_.lamp_shader->Uniform("u_LightColor"), 1, glm::value_ptr(hdr_light_color));
+        glUniform1f(resources_.lamp_shader->Uniform("u_BloomThreshold"),
+                    post_process_.enable_bloom ? post_process_.bloom_threshold : 99999.0f);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
     resources_.cube_vao->Unbind();
     resources_.lamp_shader->Unbind();
 }
@@ -674,8 +963,10 @@ void AdvanceLightingState::CreateBloomFBOs(int width, int height)
         glTextureStorage2D(resources_.bloom_color_textures[i], 1, GL_RGBA16F, width, height);
         glTextureParameteri(resources_.bloom_color_textures[i], GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTextureParameteri(resources_.bloom_color_textures[i], GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTextureParameteri(resources_.bloom_color_textures[i], GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTextureParameteri(resources_.bloom_color_textures[i], GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(
+            resources_.bloom_color_textures[i], GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(
+            resources_.bloom_color_textures[i], GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glNamedFramebufferTexture(
             resources_.bloom_fbo, GL_COLOR_ATTACHMENT0 + i, resources_.bloom_color_textures[i], 0);
     }
@@ -692,10 +983,14 @@ void AdvanceLightingState::CreateBloomFBOs(int width, int height)
         glCreateFramebuffers(1, &resources_.bloom_ping_pong_fbos[i]);
         glCreateTextures(GL_TEXTURE_2D, 1, &resources_.bloom_ping_pong_textures[i]);
         glTextureStorage2D(resources_.bloom_ping_pong_textures[i], 1, GL_RGBA16F, width, height);
-        glTextureParameteri(resources_.bloom_ping_pong_textures[i], GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTextureParameteri(resources_.bloom_ping_pong_textures[i], GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTextureParameteri(resources_.bloom_ping_pong_textures[i], GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTextureParameteri(resources_.bloom_ping_pong_textures[i], GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(
+            resources_.bloom_ping_pong_textures[i], GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(
+            resources_.bloom_ping_pong_textures[i], GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTextureParameteri(
+            resources_.bloom_ping_pong_textures[i], GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(
+            resources_.bloom_ping_pong_textures[i], GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glNamedFramebufferTexture(resources_.bloom_ping_pong_fbos[i],
                                   GL_COLOR_ATTACHMENT0,
                                   resources_.bloom_ping_pong_textures[i],
