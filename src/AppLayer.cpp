@@ -5,6 +5,7 @@
 #include "Scene/Scenes/BezierCurveScene.hpp"
 #include "Scene/Scenes/BezierSurfaceScene.hpp"
 #include "Scene/Scenes/CameraTestScene.hpp"
+#include "Scene/Scenes/ComputeShaderScene.hpp"
 #include "Scene/Scenes/ModelScene.hpp"
 #include "Scene/Scenes/PBR/PBR.hpp"
 #include "Scene/Scenes/StressTestScene.hpp"
@@ -38,6 +39,7 @@ void AppLayer::OnAttach()
     scenes_.push_back(std::make_unique<StressTestScene>());
     scenes_.push_back(std::make_unique<BezierCurveScene>());
     scenes_.push_back(std::make_unique<BezierSurfaceScene>());
+    scenes_.push_back(std::make_unique<ComputeShaderScene>());
 
     current_scene_ = 0;
     scenes_[current_scene_]->OnEnter();

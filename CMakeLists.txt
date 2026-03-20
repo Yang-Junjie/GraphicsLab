@@ -35,6 +35,7 @@ add_executable(CGLab
     src/Scene/Scenes/ModelScene.cpp
     src/Scene/Scenes/BezierCurveScene.cpp
     src/Scene/Scenes/BezierSurfaceScene.cpp
+    src/Scene/Scenes/ComputeShaderScene.cpp
     third_party/stb/stb_image.cpp
 )
 
