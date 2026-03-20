@@ -9,12 +9,13 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
-#include <cstddef>
-#include <cstdint>
+#include <cctype>
+#include <string>
 #include <vector>
 
 namespace {
+
+constexpr const char* kModelRoot = "res/model";
 
 struct FramebufferState {
     GLint framebuffer = 0;
@@ -29,11 +30,48 @@ FramebufferState CaptureFramebufferState()
     return state;
 }
 
-struct SphereVertex {
-    glm::vec3 position = glm::vec3(0.0f);
-    glm::vec3 normal = glm::vec3(0.0f);
-    glm::vec2 texcoord = glm::vec2(0.0f);
-};
+std::string ToLower(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return value;
+}
+
+bool IsModelAsset(const std::filesystem::path& path)
+{
+    const std::string extension = ToLower(path.extension().string());
+    return extension == ".gltf" || extension == ".glb";
+}
+
+std::filesystem::path FindFirstModelPath(const std::filesystem::path& root)
+{
+    if (!std::filesystem::exists(root) || !std::filesystem::is_directory(root)) {
+        return {};
+    }
+
+    std::vector<std::filesystem::path> candidates;
+
+    try {
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(root)) {
+            if (entry.is_regular_file() && IsModelAsset(entry.path())) {
+                candidates.push_back(entry.path());
+            }
+        }
+    } catch (const std::filesystem::filesystem_error&) {
+        return {};
+    }
+
+    std::sort(candidates.begin(), candidates.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.generic_string() < rhs.generic_string();
+    });
+
+    if (candidates.empty()) {
+        return {};
+    }
+
+    return candidates.front();
+}
 
 } // namespace
 
@@ -55,19 +93,18 @@ void PBRState::OnExit()
     DestroyGBuffer();
 
     resources_.quad_vbo.reset();
-    resources_.sphere_ebo.reset();
-    resources_.sphere_vbo.reset();
 
+    resources_.model.reset();
     resources_.quad_vao.reset();
-    resources_.sphere_vao.reset();
 
     resources_.lighting_shader.reset();
     resources_.geometry_shader.reset();
 
-    resources_.sphere_index_count = 0;
     input_.keys_down.clear();
     input_.right_mouse_down = false;
     input_.first_mouse = true;
+    model_path_.clear();
+    model_status_.clear();
     ready_ = false;
 }
 
@@ -101,7 +138,7 @@ void PBRState::OnUpdate(float dt)
 void PBRState::OnRender(float width, float height)
 {
     if (!ready_ || !resources_.geometry_shader || !resources_.lighting_shader ||
-        !resources_.sphere_vao || !resources_.quad_vao) {
+        !resources_.model || !resources_.quad_vao) {
         return;
     }
 
@@ -148,6 +185,9 @@ void PBRState::OnRenderUI()
             case 5:
                 preview_texture = resources_.g_ao_texture;
                 break;
+            case 6:
+                preview_texture = resources_.g_emissive_texture;
+                break;
             default:
                 break;
         }
@@ -173,12 +213,22 @@ void PBRState::OnRenderUI()
     ImGui::Text("Deferred PBR");
     ImGui::Separator();
 
+    ImGui::TextWrapped("Model: %s", model_status_.c_str());
+    if (!model_path_.empty()) {
+        ImGui::TextWrapped("Asset: %s", model_path_.generic_string().c_str());
+    }
+    if (resources_.model && resources_.model->IsLoaded()) {
+        ImGui::Text("Meshes: %llu | Materials: %llu | Instances: %llu",
+                    static_cast<unsigned long long>(resources_.model->GetMeshCount()),
+                    static_cast<unsigned long long>(resources_.model->GetMaterialCount()),
+                    static_cast<unsigned long long>(resources_.model->GetInstanceCount()));
+    }
+
+    ImGui::Separator();
     ImGui::Text("Material");
-    ImGui::ColorEdit3("Albedo", &material_.albedo.x);
-    ImGui::SliderFloat("Metallic", &material_.metallic, 0.0f, 1.0f, "%.2f");
-    ImGui::SliderFloat("Roughness", &material_.roughness, 0.05f, 1.0f, "%.2f");
-    ImGui::SliderFloat("AO", &material_.ao, 0.0f, 1.0f, "%.2f");
-    ImGui::SliderFloat("Sphere Scale", &material_.sphere_scale, 0.2f, 3.0f, "%.2f");
+    ImGui::TextWrapped(
+        "Base color, normal, occlusion, roughness, metallic, and emissive come from the glTF material textures.");
+    ImGui::SliderFloat("Model Scale", &material_.model_scale, 0.05f, 4.0f, "%.2f");
 
     ImGui::Separator();
     ImGui::Text("Light");
@@ -199,8 +249,9 @@ void PBRState::OnRenderUI()
 
     ImGui::Separator();
     ImGui::Text("G-Buffer Preview");
-    const char* gbuffer_previews[] = {"Position", "Normal", "Albedo", "Metallic", "Roughness", "AO"};
-    ImGui::Combo("Attachment", &debug_.selected_gbuffer_preview, gbuffer_previews, 6);
+    const char* gbuffer_previews[] = {
+        "Position", "Normal", "Albedo", "Metallic", "Roughness", "AO", "Emissive"};
+    ImGui::Combo("Attachment", &debug_.selected_gbuffer_preview, gbuffer_previews, 7);
     switch (debug_.selected_gbuffer_preview) {
         case 0:
             render_preview(
@@ -210,16 +261,19 @@ void PBRState::OnRenderUI()
             render_preview("Normal buffer stores encoded normals only.");
             break;
         case 2:
-            render_preview("Albedo buffer stores base color only.");
+            render_preview("Albedo buffer stores glTF base color.");
             break;
         case 3:
-            render_preview("Metallic is stored in its own grayscale texture.");
+            render_preview("Metallic comes from the glTF metallic-roughness texture B channel.");
             break;
         case 4:
-            render_preview("Roughness is stored in its own grayscale texture.");
+            render_preview("Roughness comes from the glTF metallic-roughness texture G channel.");
             break;
         case 5:
-            render_preview("AO is stored in its own grayscale texture.");
+            render_preview("AO comes from the glTF occlusion texture R channel.");
+            break;
+        case 6:
+            render_preview("Emissive stores the glTF emissive contribution.");
             break;
         default:
             break;
@@ -274,84 +328,32 @@ bool PBRState::CreateShaders()
 
 void PBRState::CreateGeometry()
 {
-    CreateSphereGeometry(64, 64);
+    LoadModel();
     CreateQuadGeometry();
 }
 
-void PBRState::CreateSphereGeometry(int x_segments, int y_segments)
+bool PBRState::LoadModel()
 {
-    std::vector<SphereVertex> vertices;
-    std::vector<std::uint32_t> indices;
+    resources_.model.reset();
+    model_path_.clear();
 
-    vertices.reserve(static_cast<std::size_t>(x_segments + 1) *
-                     static_cast<std::size_t>(y_segments + 1));
-    indices.reserve(static_cast<std::size_t>(x_segments) * static_cast<std::size_t>(y_segments) *
-                    6);
-
-    const float pi = glm::pi<float>();
-    for (int y = 0; y <= y_segments; ++y) {
-        const float y_segment = static_cast<float>(y) / static_cast<float>(y_segments);
-        const float theta = y_segment * pi;
-
-        for (int x = 0; x <= x_segments; ++x) {
-            const float x_segment = static_cast<float>(x) / static_cast<float>(x_segments);
-            const float phi = x_segment * 2.0f * pi;
-
-            const float x_pos = std::cos(phi) * std::sin(theta);
-            const float y_pos = std::cos(theta);
-            const float z_pos = std::sin(phi) * std::sin(theta);
-
-            SphereVertex vertex;
-            vertex.position = glm::vec3(x_pos, y_pos, z_pos);
-            vertex.normal = glm::normalize(vertex.position);
-            vertex.texcoord = glm::vec2(x_segment, y_segment);
-            vertices.push_back(vertex);
-        }
+    const std::filesystem::path model_path = FindFirstModelPath(kModelRoot);
+    if (model_path.empty()) {
+        model_status_ = "No .gltf or .glb asset found under res/model";
+        return false;
     }
 
-    for (int y = 0; y < y_segments; ++y) {
-        for (int x = 0; x < x_segments; ++x) {
-            const std::uint32_t i0 = static_cast<std::uint32_t>(y * (x_segments + 1) + x);
-            const std::uint32_t i1 = i0 + static_cast<std::uint32_t>(x_segments + 1);
-
-            indices.push_back(i0);
-            indices.push_back(i1);
-            indices.push_back(i0 + 1);
-
-            indices.push_back(i1);
-            indices.push_back(i1 + 1);
-            indices.push_back(i0 + 1);
-        }
+    auto model = std::make_unique<Model>();
+    if (!model->LoadFromGLTF(model_path)) {
+        model_status_ = "Model load failed";
+        model_path_ = model_path;
+        return false;
     }
 
-    resources_.sphere_vao = std::make_unique<gl::VertexArray>();
-    resources_.sphere_vbo = std::make_unique<gl::Buffer>();
-    resources_.sphere_ebo = std::make_unique<gl::Buffer>();
-
-    resources_.sphere_vbo->Storage(static_cast<GLsizeiptr>(vertices.size() * sizeof(SphereVertex)),
-                                   vertices.data(),
-                                   GL_STATIC_DRAW);
-    resources_.sphere_ebo->Storage(static_cast<GLsizeiptr>(indices.size() * sizeof(std::uint32_t)),
-                                   indices.data(),
-                                   GL_STATIC_DRAW);
-
-    const GLuint vao = resources_.sphere_vao->Id();
-    glVertexArrayVertexBuffer(vao, 0, resources_.sphere_vbo->Id(), 0, sizeof(SphereVertex));
-    glVertexArrayElementBuffer(vao, resources_.sphere_ebo->Id());
-
-    glEnableVertexArrayAttrib(vao, 0);
-    glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(SphereVertex, position));
-    glVertexArrayAttribBinding(vao, 0, 0);
-
-    glEnableVertexArrayAttrib(vao, 1);
-    glVertexArrayAttribFormat(vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(SphereVertex, normal));
-    glVertexArrayAttribBinding(vao, 1, 0);
-
-    glEnableVertexArrayAttrib(vao, 2);
-    glVertexArrayAttribFormat(vao, 2, 2, GL_FLOAT, GL_FALSE, offsetof(SphereVertex, texcoord));
-    glVertexArrayAttribBinding(vao, 2, 0);
-
-    resources_.sphere_index_count = static_cast<GLsizei>(indices.size());
+    model_path_ = model_path;
+    model_status_ = "Model loaded";
+    resources_.model = std::move(model);
+    return true;
 }
 
 void PBRState::CreateQuadGeometry()
@@ -447,6 +449,13 @@ void PBRState::CreateGBuffer(int width, int height)
                               resources_.g_ao_texture,
                               0);
 
+    glCreateTextures(GL_TEXTURE_2D, 1, &resources_.g_emissive_texture);
+    setup_color_texture(resources_.g_emissive_texture, GL_RGBA16F);
+    glNamedFramebufferTexture(resources_.g_buffer_fbo,
+                              GL_COLOR_ATTACHMENT6,
+                              resources_.g_emissive_texture,
+                              0);
+
     glCreateRenderbuffers(1, &resources_.g_depth_rbo);
     glNamedRenderbufferStorage(resources_.g_depth_rbo, GL_DEPTH_COMPONENT24, width, height);
     glNamedFramebufferRenderbuffer(resources_.g_buffer_fbo,
@@ -461,8 +470,9 @@ void PBRState::CreateGBuffer(int width, int height)
         GL_COLOR_ATTACHMENT3,
         GL_COLOR_ATTACHMENT4,
         GL_COLOR_ATTACHMENT5,
+        GL_COLOR_ATTACHMENT6,
     };
-    glNamedFramebufferDrawBuffers(resources_.g_buffer_fbo, 6, attachments);
+    glNamedFramebufferDrawBuffers(resources_.g_buffer_fbo, 7, attachments);
 
     const GLenum framebuffer_status =
         glCheckNamedFramebufferStatus(resources_.g_buffer_fbo, GL_FRAMEBUFFER);
@@ -476,6 +486,10 @@ void PBRState::DestroyGBuffer()
     if (resources_.g_depth_rbo) {
         glDeleteRenderbuffers(1, &resources_.g_depth_rbo);
         resources_.g_depth_rbo = 0;
+    }
+    if (resources_.g_emissive_texture) {
+        glDeleteTextures(1, &resources_.g_emissive_texture);
+        resources_.g_emissive_texture = 0;
     }
     if (resources_.g_ao_texture) {
         glDeleteTextures(1, &resources_.g_ao_texture);
@@ -525,7 +539,7 @@ void PBRState::SyncCamera(float width, float height)
 {
     camera_.camera.SetPosition(camera_.position);
     camera_.camera.SetRotation(camera_.pitch, camera_.yaw);
-    camera_.camera.SetPerspective(camera_.fov, width / height, 0.1f, 100.0f);
+    camera_.camera.SetPerspective(camera_.fov, width / height, 0.01f, 20.0f);
 }
 
 void PBRState::RenderGeometryPass(int width,
@@ -533,6 +547,10 @@ void PBRState::RenderGeometryPass(int width,
                                   const glm::mat4& view,
                                   const glm::mat4& projection)
 {
+    if (!resources_.model || !resources_.model->IsLoaded()) {
+        return;
+    }
+
     static constexpr GLfloat clear_color[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
     glEnable(GL_DEPTH_TEST);
@@ -544,6 +562,7 @@ void PBRState::RenderGeometryPass(int width,
     glClearBufferfv(GL_COLOR, 3, clear_color);
     glClearBufferfv(GL_COLOR, 4, clear_color);
     glClearBufferfv(GL_COLOR, 5, clear_color);
+    glClearBufferfv(GL_COLOR, 6, clear_color);
     glClear(GL_DEPTH_BUFFER_BIT);
 
     resources_.geometry_shader->Bind();
@@ -553,18 +572,10 @@ void PBRState::RenderGeometryPass(int width,
                        1,
                        GL_FALSE,
                        glm::value_ptr(projection));
-    glUniform3fv(
-        resources_.geometry_shader->Uniform("u_Albedo"), 1, glm::value_ptr(material_.albedo));
-    glUniform1f(resources_.geometry_shader->Uniform("u_Metallic"), material_.metallic);
-    glUniform1f(resources_.geometry_shader->Uniform("u_Roughness"), material_.roughness);
-    glUniform1f(resources_.geometry_shader->Uniform("u_AO"), material_.ao);
 
-    glm::mat4 model(1.0f);
-    model = glm::scale(model, glm::vec3(material_.sphere_scale));
-    glUniformMatrix4fv(
-        resources_.geometry_shader->Uniform("u_Model"), 1, GL_FALSE, glm::value_ptr(model));
-
-    RenderSphere();
+    glm::mat4 model_transform(1.0f);
+    model_transform = glm::scale(model_transform, glm::vec3(material_.model_scale));
+    resources_.model->Draw(*resources_.geometry_shader, model_transform);
     resources_.geometry_shader->Unbind();
 }
 
@@ -608,20 +619,11 @@ void PBRState::RenderLightingPass(const std::array<GLint, 4>& viewport, GLint ta
     glUniform1i(resources_.lighting_shader->Uniform("u_GRoughness"), 4);
     glBindTextureUnit(5, resources_.g_ao_texture);
     glUniform1i(resources_.lighting_shader->Uniform("u_GAO"), 5);
+    glBindTextureUnit(6, resources_.g_emissive_texture);
+    glUniform1i(resources_.lighting_shader->Uniform("u_GEmissive"), 6);
 
     RenderQuad();
     resources_.lighting_shader->Unbind();
-}
-
-void PBRState::RenderSphere()
-{
-    if (!resources_.sphere_vao || resources_.sphere_index_count <= 0) {
-        return;
-    }
-
-    resources_.sphere_vao->Bind();
-    glDrawElements(GL_TRIANGLES, resources_.sphere_index_count, GL_UNSIGNED_INT, nullptr);
-    resources_.sphere_vao->Unbind();
 }
 
 void PBRState::RenderQuad()
@@ -698,3 +700,4 @@ bool PBRState::OnMouseScrolled(float /*x_offset*/, float y_offset)
     camera_.fov = glm::clamp(camera_.fov, 10.0f, 120.0f);
     return true;
 }
+

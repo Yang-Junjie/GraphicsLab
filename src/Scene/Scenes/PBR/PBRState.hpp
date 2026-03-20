@@ -4,9 +4,12 @@
 #include "Backend/OpenGL/Shader.hpp"
 #include "Backend/OpenGL/VertexArray.hpp"
 #include "Camera/Camera3D.hpp"
+#include "Model/Model.hpp"
 
 #include <array>
+#include <filesystem>
 #include <memory>
+#include <string>
 #include <unordered_set>
 
 #include <glm/glm.hpp>
@@ -19,14 +22,10 @@ struct PBRRenderResources {
     std::unique_ptr<gl::Shader> geometry_shader;
     std::unique_ptr<gl::Shader> lighting_shader;
 
-    std::unique_ptr<gl::VertexArray> sphere_vao;
     std::unique_ptr<gl::VertexArray> quad_vao;
+    std::unique_ptr<Model> model;
 
-    std::unique_ptr<gl::Buffer> sphere_vbo;
-    std::unique_ptr<gl::Buffer> sphere_ebo;
     std::unique_ptr<gl::Buffer> quad_vbo;
-
-    GLsizei sphere_index_count = 0;
 
     GLuint g_buffer_fbo = 0;
     GLuint g_position_texture = 0;
@@ -35,17 +34,14 @@ struct PBRRenderResources {
     GLuint g_metallic_texture = 0;
     GLuint g_roughness_texture = 0;
     GLuint g_ao_texture = 0;
+    GLuint g_emissive_texture = 0;
     GLuint g_depth_rbo = 0;
     int g_buffer_width = 0;
     int g_buffer_height = 0;
 };
 
 struct PBRMaterialSettings {
-    glm::vec3 albedo = glm::vec3(1.0f, 0.71f, 0.29f);
-    float metallic = 0.85f;
-    float roughness = 0.28f;
-    float ao = 1.0f;
-    float sphere_scale = 1.0f;
+    float model_scale = 1.0f;
 };
 
 struct PBRPointLight {
@@ -69,12 +65,12 @@ struct PBRInputState {
 };
 
 struct PBRCameraState {
-    Camera3D camera = Camera3D(45.0f, 4.0f / 3.0f, 0.1f, 100.0f);
-    glm::vec3 position = glm::vec3(0.0f, 0.0f, 5.0f);
-    float pitch = 0.0f;
+    Camera3D camera = Camera3D(45.0f, 4.0f / 3.0f, 0.01f, 20.0f);
+    glm::vec3 position = glm::vec3(0.0f, 0.4f, 0.45f);
+    float pitch = -45.0f;
     float yaw = -90.0f;
     float fov = 45.0f;
-    float move_speed = 4.0f;
+    float move_speed = 2.0f;
     float mouse_sensitivity = 0.1f;
 };
 
@@ -94,7 +90,7 @@ public:
 private:
     bool CreateShaders();
     void CreateGeometry();
-    void CreateSphereGeometry(int x_segments, int y_segments);
+    bool LoadModel();
     void CreateQuadGeometry();
     void CreateGBuffer(int width, int height);
     void DestroyGBuffer();
@@ -105,7 +101,6 @@ private:
                             const glm::mat4& view,
                             const glm::mat4& projection);
     void RenderLightingPass(const std::array<GLint, 4>& viewport, GLint target_framebuffer);
-    void RenderSphere();
     void RenderQuad();
 
     bool OnKeyPressed(int keycode);
@@ -121,5 +116,7 @@ private:
     PBRInputState input_;
     PBRCameraState camera_;
     PBRDebugState debug_;
+    std::filesystem::path model_path_;
+    std::string model_status_;
     bool ready_ = false;
 };

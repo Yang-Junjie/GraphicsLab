@@ -18,6 +18,7 @@ uniform sampler2D u_GAlbedo;
 uniform sampler2D u_GMetallic;
 uniform sampler2D u_GRoughness;
 uniform sampler2D u_GAO;
+uniform sampler2D u_GEmissive;
 
 uniform PointLight u_Light;
 uniform vec3 u_ViewPos;
@@ -72,6 +73,7 @@ void main()
     float metallic = clamp(texture(u_GMetallic, v_TexCoord).r, 0.0, 1.0);
     float roughness = clamp(texture(u_GRoughness, v_TexCoord).r, 0.045, 1.0);
     float ao = clamp(texture(u_GAO, v_TexCoord).r, 0.0, 1.0);
+    vec3 emissive = texture(u_GEmissive, v_TexCoord).rgb;
 
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
     vec3 Lo = vec3(0.0);
@@ -97,7 +99,7 @@ void main()
     Lo += (kD * albedo / PI + specular) * radiance * NdotL;
 
     vec3 ambient = u_AmbientIntensity * albedo * ao;
-    vec3 color = ambient + Lo;
+    vec3 color = emissive + ambient + Lo;
     color = color / (color + vec3(1.0));
     color = pow(color, vec3(1.0 / 2.2));
 

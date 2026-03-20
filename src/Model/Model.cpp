@@ -7,6 +7,7 @@
 
 #include <limits>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace {
@@ -47,6 +48,14 @@ GLenum PrimitiveTypeToGL(fastgltf::PrimitiveType type)
 struct ByteSpan {
     const unsigned char* data = nullptr;
     std::size_t size = 0;
+};
+
+enum class MaterialTextureKind {
+    BaseColor,
+    MetallicRoughness,
+    Normal,
+    Occlusion,
+    Emissive,
 };
 
 std::optional<ByteSpan> ReadBytesFromBuffer(const fastgltf::DataSource& source,
@@ -109,10 +118,52 @@ std::optional<ByteSpan> ReadBytesFromBuffer(const fastgltf::DataSource& source,
         source);
 }
 
+bool LoadMaterialTextureFromFile(Material& material,
+                                 MaterialTextureKind kind,
+                                 const std::filesystem::path& path)
+{
+    switch (kind) {
+        case MaterialTextureKind::BaseColor:
+            return material.LoadBaseColorTextureFromFile(path);
+        case MaterialTextureKind::MetallicRoughness:
+            return material.LoadMetallicRoughnessTextureFromFile(path);
+        case MaterialTextureKind::Normal:
+            return material.LoadNormalTextureFromFile(path);
+        case MaterialTextureKind::Occlusion:
+            return material.LoadOcclusionTextureFromFile(path);
+        case MaterialTextureKind::Emissive:
+            return material.LoadEmissiveTextureFromFile(path);
+        default:
+            return false;
+    }
+}
+
+bool LoadMaterialTextureFromMemory(Material& material,
+                                   MaterialTextureKind kind,
+                                   const unsigned char* bytes,
+                                   int size_bytes)
+{
+    switch (kind) {
+        case MaterialTextureKind::BaseColor:
+            return material.LoadBaseColorTextureFromMemory(bytes, size_bytes);
+        case MaterialTextureKind::MetallicRoughness:
+            return material.LoadMetallicRoughnessTextureFromMemory(bytes, size_bytes);
+        case MaterialTextureKind::Normal:
+            return material.LoadNormalTextureFromMemory(bytes, size_bytes);
+        case MaterialTextureKind::Occlusion:
+            return material.LoadOcclusionTextureFromMemory(bytes, size_bytes);
+        case MaterialTextureKind::Emissive:
+            return material.LoadEmissiveTextureFromMemory(bytes, size_bytes);
+        default:
+            return false;
+    }
+}
+
 bool TryLoadMaterialTexture(Material& material,
                             const fastgltf::Asset& asset,
                             std::size_t texture_index,
-                            const std::filesystem::path& model_directory)
+                            const std::filesystem::path& model_directory,
+                            MaterialTextureKind kind)
 {
     if (texture_index >= asset.textures.size()) {
         return false;
@@ -138,7 +189,7 @@ bool TryLoadMaterialTexture(Material& material,
 
                 const std::string uri_path(source.uri.path().begin(), source.uri.path().end());
                 const std::filesystem::path image_path = model_directory / uri_path;
-                return material.LoadBaseColorTextureFromFile(image_path);
+                return LoadMaterialTextureFromFile(material, kind, image_path);
             },
             [&](const fastgltf::sources::BufferView& source) {
                 if (source.bufferViewIndex >= asset.bufferViews.size()) {
@@ -154,23 +205,29 @@ bool TryLoadMaterialTexture(Material& material,
                 if (!bytes.has_value()) {
                     return false;
                 }
-                return material.LoadBaseColorTextureFromMemory(bytes->data,
-                                                               static_cast<int>(bytes->size));
+                return LoadMaterialTextureFromMemory(
+                    material, kind, bytes->data, static_cast<int>(bytes->size));
             },
             [&](const fastgltf::sources::Array& source) {
-                return material.LoadBaseColorTextureFromMemory(
-                    reinterpret_cast<const unsigned char*>(source.bytes.data()),
-                    static_cast<int>(source.bytes.size()));
+                return LoadMaterialTextureFromMemory(material,
+                                                     kind,
+                                                     reinterpret_cast<const unsigned char*>(
+                                                         source.bytes.data()),
+                                                     static_cast<int>(source.bytes.size()));
             },
             [&](const fastgltf::sources::Vector& source) {
-                return material.LoadBaseColorTextureFromMemory(
-                    reinterpret_cast<const unsigned char*>(source.bytes.data()),
-                    static_cast<int>(source.bytes.size()));
+                return LoadMaterialTextureFromMemory(material,
+                                                     kind,
+                                                     reinterpret_cast<const unsigned char*>(
+                                                         source.bytes.data()),
+                                                     static_cast<int>(source.bytes.size()));
             },
             [&](const fastgltf::sources::ByteView& source) {
-                return material.LoadBaseColorTextureFromMemory(
-                    reinterpret_cast<const unsigned char*>(source.bytes.data()),
-                    static_cast<int>(source.bytes.size()));
+                return LoadMaterialTextureFromMemory(material,
+                                                     kind,
+                                                     reinterpret_cast<const unsigned char*>(
+                                                         source.bytes.data()),
+                                                     static_cast<int>(source.bytes.size()));
             },
             [&](const auto&) {
                 return false;
@@ -220,19 +277,57 @@ bool Model::LoadFromGLTF(const std::filesystem::path& path)
                                                   src_material.pbrData.baseColorFactor.y(),
                                                   src_material.pbrData.baseColorFactor.z(),
                                                   src_material.pbrData.baseColorFactor.w()));
+            material.SetMetallicFactor(static_cast<float>(src_material.pbrData.metallicFactor));
+            material.SetRoughnessFactor(static_cast<float>(src_material.pbrData.roughnessFactor));
+            material.SetEmissiveFactor(glm::vec3(src_material.emissiveFactor.x(),
+                                                 src_material.emissiveFactor.y(),
+                                                 src_material.emissiveFactor.z()));
 
             if (src_material.pbrData.baseColorTexture.has_value()) {
                 TryLoadMaterialTexture(material,
                                        asset,
                                        src_material.pbrData.baseColorTexture->textureIndex,
-                                       path.parent_path());
+                                       path.parent_path(),
+                                       MaterialTextureKind::BaseColor);
+            }
+            if (src_material.pbrData.metallicRoughnessTexture.has_value()) {
+                TryLoadMaterialTexture(material,
+                                       asset,
+                                       src_material.pbrData.metallicRoughnessTexture->textureIndex,
+                                       path.parent_path(),
+                                       MaterialTextureKind::MetallicRoughness);
+            }
+            if (src_material.normalTexture.has_value()) {
+                material.SetNormalScale(static_cast<float>(src_material.normalTexture->scale));
+                TryLoadMaterialTexture(material,
+                                       asset,
+                                       src_material.normalTexture->textureIndex,
+                                       path.parent_path(),
+                                       MaterialTextureKind::Normal);
+            }
+            if (src_material.occlusionTexture.has_value()) {
+                material.SetOcclusionStrength(
+                    static_cast<float>(src_material.occlusionTexture->strength));
+                TryLoadMaterialTexture(material,
+                                       asset,
+                                       src_material.occlusionTexture->textureIndex,
+                                       path.parent_path(),
+                                       MaterialTextureKind::Occlusion);
+            }
+            if (src_material.emissiveTexture.has_value()) {
+                TryLoadMaterialTexture(material,
+                                       asset,
+                                       src_material.emissiveTexture->textureIndex,
+                                       path.parent_path(),
+                                       MaterialTextureKind::Emissive);
             }
 
             materials_.emplace_back(std::move(material));
         }
     }
 
-    std::vector<std::size_t> mesh_remap(asset.meshes.size(), std::numeric_limits<std::size_t>::max());
+    std::vector<std::size_t> mesh_remap(asset.meshes.size(),
+                                        std::numeric_limits<std::size_t>::max());
     meshes_.reserve(asset.meshes.size());
 
     for (std::size_t mesh_idx = 0; mesh_idx < asset.meshes.size(); ++mesh_idx) {
@@ -273,7 +368,8 @@ bool Model::LoadFromGLTF(const std::filesystem::path& path)
                     normal_accessor,
                     [&](fastgltf::math::fvec3 normal, std::size_t vertex_idx) {
                         auto& vertex = vertices[vertex_start + vertex_idx];
-                        vertex.normal = glm::normalize(glm::vec3(normal.x(), normal.y(), normal.z()));
+                        vertex.normal =
+                            glm::normalize(glm::vec3(normal.x(), normal.y(), normal.z()));
                     });
             }
 
@@ -289,6 +385,19 @@ bool Model::LoadFromGLTF(const std::filesystem::path& path)
                     });
             }
 
+            if (const auto tangent_it = primitive.findAttribute("TANGENT");
+                tangent_it != primitive.attributes.end()) {
+                const auto& tangent_accessor = asset.accessors[tangent_it->accessorIndex];
+                fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec4>(
+                    asset,
+                    tangent_accessor,
+                    [&](fastgltf::math::fvec4 tangent, std::size_t vertex_idx) {
+                        auto& vertex = vertices[vertex_start + vertex_idx];
+                        vertex.tangent =
+                            glm::vec4(tangent.x(), tangent.y(), tangent.z(), tangent.w());
+                    });
+            }
+
             const std::size_t index_offset = indices.size();
             std::size_t index_count = 0;
 
@@ -297,7 +406,8 @@ bool Model::LoadFromGLTF(const std::filesystem::path& path)
                 index_count = index_accessor.count;
 
                 std::vector<std::uint32_t> local_indices(index_count);
-                fastgltf::copyFromAccessor<std::uint32_t>(asset, index_accessor, local_indices.data());
+                fastgltf::copyFromAccessor<std::uint32_t>(
+                    asset, index_accessor, local_indices.data());
 
                 indices.resize(index_offset + index_count);
                 for (std::size_t i = 0; i < index_count; ++i) {

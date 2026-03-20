@@ -74,4 +74,8 @@ void Mesh::SetupGpuResources()
     glEnableVertexArrayAttrib(vao, 2);
     glVertexArrayAttribFormat(vao, 2, 2, GL_FLOAT, GL_FALSE, offsetof(MeshVertex, texcoord));
     glVertexArrayAttribBinding(vao, 2, 0);
+
+    glEnableVertexArrayAttrib(vao, 3);
+    glVertexArrayAttribFormat(vao, 3, 4, GL_FLOAT, GL_FALSE, offsetof(MeshVertex, tangent));
+    glVertexArrayAttribBinding(vao, 3, 0);
 }
