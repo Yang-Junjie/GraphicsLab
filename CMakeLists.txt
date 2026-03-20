@@ -30,6 +30,8 @@ add_executable(CGLab
     src/Scene/Scenes/BaseLighting.cpp
     src/Scene/Scenes/AdvanceLighting/AdvanceLighting.cpp
     src/Scene/Scenes/AdvanceLighting/AdvanceLightingState.cpp
+    src/Scene/Scenes/PBR/PBR.cpp
+    src/Scene/Scenes/PBR/PBRState.cpp
     src/Scene/Scenes/ModelScene.cpp
     src/Scene/Scenes/BezierCurveScene.cpp
     src/Scene/Scenes/BezierSurfaceScene.cpp
