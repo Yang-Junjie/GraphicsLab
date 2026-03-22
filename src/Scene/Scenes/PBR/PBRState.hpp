@@ -21,11 +21,17 @@ class Event;
 struct PBRRenderResources {
     std::unique_ptr<gl::Shader> geometry_shader;
     std::unique_ptr<gl::Shader> lighting_shader;
+    std::unique_ptr<gl::Shader> equirect_to_cubemap_shader;
+    std::unique_ptr<gl::Shader> irradiance_shader;
+    std::unique_ptr<gl::Shader> prefilter_shader;
+    std::unique_ptr<gl::Shader> brdf_lut_shader;
 
     std::unique_ptr<gl::VertexArray> quad_vao;
+    std::unique_ptr<gl::VertexArray> cube_vao;
     std::unique_ptr<Model> model;
 
     std::unique_ptr<gl::Buffer> quad_vbo;
+    std::unique_ptr<gl::Buffer> cube_vbo;
 
     GLuint g_buffer_fbo = 0;
     GLuint g_position_texture = 0;
@@ -38,6 +44,15 @@ struct PBRRenderResources {
     GLuint g_depth_rbo = 0;
     int g_buffer_width = 0;
     int g_buffer_height = 0;
+
+    GLuint capture_fbo = 0;
+    GLuint capture_rbo = 0;
+    GLuint hdr_texture = 0;
+    GLuint environment_cubemap = 0;
+    GLuint irradiance_cubemap = 0;
+    GLuint prefilter_cubemap = 0;
+    GLuint brdf_lut_texture = 0;
+    int prefilter_mip_levels = 0;
 };
 
 struct PBRMaterialSettings {
@@ -53,7 +68,12 @@ struct PBRPointLight {
 struct PBRLightingSettings {
     PBRPointLight light;
     float ambient_intensity = 0.03f;
+    float ibl_intensity = 1.0f;
+    float environment_intensity = 1.0f;
+    float exposure = 1.0f;
+    float background_lod = 0.0f;
     glm::vec3 background_color = glm::vec3(0.03f, 0.04f, 0.06f);
+    bool show_environment = true;
 };
 
 struct PBRInputState {
@@ -76,10 +96,13 @@ struct PBRCameraState {
 
 struct PBRDebugState {
     int selected_gbuffer_preview = 0;
+    int lighting_output_mode = 0;
 };
 
 class PBRState {
 public:
+    explicit PBRState(std::filesystem::path model_path = {});
+
     void OnEnter();
     void OnExit();
     void OnUpdate(float dt);
@@ -90,18 +113,25 @@ public:
 private:
     bool CreateShaders();
     void CreateGeometry();
+    void CreateCubeGeometry();
     bool LoadModel();
+    bool CreateImageBasedLighting();
     void CreateQuadGeometry();
     void CreateGBuffer(int width, int height);
     void DestroyGBuffer();
+    void DestroyImageBasedLighting();
     void EnsureGBuffer(int width, int height);
     void SyncCamera(float width, float height);
     void RenderGeometryPass(int width,
                             int height,
                             const glm::mat4& view,
                             const glm::mat4& projection);
-    void RenderLightingPass(const std::array<GLint, 4>& viewport, GLint target_framebuffer);
+    void RenderLightingPass(const std::array<GLint, 4>& viewport,
+                            GLint target_framebuffer,
+                            const glm::mat4& view,
+                            const glm::mat4& projection);
     void RenderQuad();
+    void RenderCube();
 
     bool OnKeyPressed(int keycode);
     bool OnKeyReleased(int keycode);
@@ -116,7 +146,11 @@ private:
     PBRInputState input_;
     PBRCameraState camera_;
     PBRDebugState debug_;
+    std::filesystem::path configured_model_path_;
     std::filesystem::path model_path_;
+    std::filesystem::path hdr_path_;
     std::string model_status_;
+    std::string hdr_status_;
+    bool ibl_ready_ = false;
     bool ready_ = false;
 };

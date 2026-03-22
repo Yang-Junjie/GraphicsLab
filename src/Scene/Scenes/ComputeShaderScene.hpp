@@ -5,7 +5,6 @@
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
-#include <string>
 
 class ComputeShaderScene : public Scene {
 public:

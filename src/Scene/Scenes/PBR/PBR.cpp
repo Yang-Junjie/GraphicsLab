@@ -1,12 +1,15 @@
 #include "Scene/Scenes/PBR/PBR.hpp"
-
 #include "Scene/Scenes/PBR/PBRState.hpp"
 
 #include <memory>
 
+namespace {
+constexpr const char* kPbrModelPath = "res/model/DamagedHelmet/DamagedHelmet.gltf";
+}
+
 PBR::PBR()
-    : Scene("PBR")
-    , state_(std::make_unique<PBRState>())
+    : Scene("PBR"),
+      state_(std::make_unique<PBRState>(kPbrModelPath))
 {}
 
 PBR::~PBR() = default;
